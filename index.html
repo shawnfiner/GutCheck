@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GutCheck — Food & Symptom Tracker</title>
+<style>
+  :root{
+    --bg:#F6F4EF;
+    --surface:#FFFFFF;
+    --ink:#23262B;
+    --ink-soft:#6B7076;
+    --border:#E4E1D8;
+    --accent:#3E7C74;
+    --accent-soft:#E4EFEC;
+    --food:#3E7C74;
+    --water:#3E6FA6;
+    --water-soft:#E7EEF6;
+    --med:#7A5C9E;
+    --med-soft:#EFEAF5;
+    --pain:#B54B3D;
+    --pain-soft:#FBEAE7;
+    --ok:#6B8F71;
+    --ok-soft:#EEF3EC;
+    --warn-bg:#FDF3E7;
+    --warn-ink:#8A5A15;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none !important; transition:none !important;}
+  }
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.4;
+  }
+  .wrap{max-width:640px;margin:0 auto;padding:20px 16px 80px;}
+  header.app-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px;}
+  .brand{font-size:20px;font-weight:700;letter-spacing:-0.01em;}
+  .brand small{display:block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-top:2px;}
+  .iconbtn{
+    background:none;border:1px solid var(--border);border-radius:8px;
+    color:var(--ink-soft);font-size:12px;padding:6px 10px;cursor:pointer;
+  }
+  .iconbtn:hover{border-color:var(--accent);color:var(--accent);}
+  .tabs{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--border);}
+  .tab{
+    padding:8px 4px;margin-right:14px;font-size:14px;font-weight:600;color:var(--ink-soft);
+    border-bottom:2px solid transparent;cursor:pointer;background:none;border-top:none;border-left:none;border-right:none;
+  }
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+  .tab:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  .daybar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;position:relative;}
+  .daybar .navbtn{background:var(--surface);border:1px solid var(--border);border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:14px;color:var(--ink);}
+  .datepick{
+    font-size:15px;font-weight:700;background:var(--surface);border:1px solid var(--border);
+    border-radius:8px;padding:7px 12px;cursor:pointer;
+  }
+  .datepick .sub{font-weight:500;color:var(--ink-soft);font-size:12px;margin-left:6px;}
+
+  .calendar-pop{
+    position:absolute;top:44px;left:50%;transform:translateX(-50%);
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:0 8px 24px rgba(0,0,0,.12);padding:12px;z-index:40;width:260px;
+  }
+  .calendar-pop.hidden{display:none;}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-weight:700;font-size:13px;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:12px;}
+  .cal-grid .dow{color:var(--ink-soft);font-weight:600;padding:4px 0;}
+  .cal-grid button{
+    background:none;border:none;padding:6px 0;border-radius:6px;cursor:pointer;color:var(--ink);position:relative;
+  }
+  .cal-grid button:hover{background:var(--accent-soft);}
+  .cal-grid button.today{border:1px solid var(--accent);}
+  .cal-grid button.selected{background:var(--accent);color:#fff;}
+  .cal-grid button .dot{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--accent);}
+  .cal-grid button.selected .dot{background:#fff;}
+
+  .addbtn{
+    background:var(--accent);color:#fff;border:none;border-radius:8px;
+    padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;
+  }
+  .addbtn:hover{opacity:.9;}
+  .addbtn.ghost{background:none;color:var(--accent);border:1px solid var(--accent);}
+
+  .group-label{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin:18px 0 8px;}
+  .group-label:first-of-type{margin-top:4px;}
+
+  .entry{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:12px 14px;margin-bottom:8px;
+  }
+  .entry-top{display:flex;align-items:flex-start;gap:10px;}
+  .type-chip{
+    font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+    padding:3px 7px;border-radius:5px;white-space:nowrap;
+  }
+  .type-chip.food{background:var(--accent-soft);color:var(--food);}
+  .type-chip.water{background:var(--water-soft);color:var(--water);}
+  .type-chip.medicine{background:var(--med-soft);color:var(--med);}
+  .entry-main{flex:1;min-width:0;}
+  .entry-detail{font-size:14.5px;font-weight:600;word-break:break-word;}
+  .entry-time{font-size:12px;color:var(--ink-soft);margin-top:1px;}
+  .entry-actions{display:flex;gap:6px;}
+  .iconsm{background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:14px;padding:2px 4px;}
+  .iconsm:hover{color:var(--pain);}
+
+  .warn-tag{
+    display:inline-block;margin-top:8px;font-size:12px;background:var(--warn-bg);color:var(--warn-ink);
+    padding:4px 8px;border-radius:6px;font-weight:600;
+  }
+
+  .pain-row{display:flex;gap:14px;margin-top:10px;font-size:13px;}
+  .pain-opt{display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--ink-soft);}
+  .pain-opt input{accent-color:var(--pain);cursor:pointer;}
+  .pain-opt.ok input{accent-color:var(--ok);}
+  .pain-opt.active-pain{color:var(--pain);font-weight:700;}
+  .pain-opt.active-ok{color:var(--ok);font-weight:700;}
+
+  .empty{
+    text-align:center;color:var(--ink-soft);font-size:14px;padding:40px 20px;
+    border:1px dashed var(--border);border-radius:var(--radius);
+  }
+
+  /* modal */
+  .overlay{
+    position:fixed;inset:0;background:rgba(35,38,43,.45);display:flex;align-items:flex-end;justify-content:center;
+    z-index:100;
+  }
+  .overlay.hidden{display:none;}
+  @media (min-width:560px){ .overlay{align-items:center;} }
+  .modal{
+    background:var(--surface);width:100%;max-width:420px;border-radius:16px 16px 0 0;
+    padding:20px;max-height:88vh;overflow-y:auto;
+  }
+  @media (min-width:560px){ .modal{border-radius:16px;} }
+  .modal h2{margin:0 0 14px;font-size:17px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;}
+  .field input[type=text], .field input[type=date], .field input[type=time], .field select, .field textarea{
+    width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:#fff;color:var(--ink);
+  }
+  .row2{display:flex;gap:10px;}
+  .row2 .field{flex:1;}
+  .modal-actions{display:flex;gap:10px;margin-top:18px;}
+  .modal-actions button{flex:1;padding:11px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;border:none;}
+  .btn-cancel{background:var(--bg);color:var(--ink-soft);border:1px solid var(--border) !important;}
+  .btn-save{background:var(--accent);color:#fff;}
+  .helper{font-size:11.5px;color:var(--ink-soft);margin-top:4px;}
+  .checkgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .checkopt{display:flex;align-items:center;gap:6px;font-size:13.5px;border:1px solid var(--border);border-radius:8px;padding:8px 9px;cursor:pointer;}
+  .checkopt input{accent-color:var(--accent);}
+  .checkopt.risky{border-color:#EAD3A8;}
+
+  /* trends */
+  .stat-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;}
+  .stat-card .num{font-size:22px;font-weight:800;}
+  .stat-card .lbl{font-size:11.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;}
+  .trigger-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;}
+  .trigger-top{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:700;}
+  .trigger-meta{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .bar-bg{background:var(--bg);border-radius:4px;height:6px;margin-top:8px;overflow:hidden;}
+  .bar-fill{height:100%;background:var(--pain);border-radius:4px;}
+  .trigger-row.high{border-color:#E3B7AC;}
+
+  .bowel-safety{font-size:12px;color:var(--warn-ink);background:var(--warn-bg);padding:8px 10px;border-radius:8px;margin:6px 0 14px;}
+  .chip-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;}
+  .chip{font-size:11px;font-weight:600;padding:3px 8px;border-radius:5px;background:var(--bg);color:var(--ink-soft);}
+  .chip.risky{background:var(--warn-bg);color:var(--warn-ink);}
+
+  footer.foot{text-align:center;margin-top:30px;font-size:11.5px;color:var(--ink-soft);}
+  footer.foot button{background:none;border:none;color:var(--accent);cursor:pointer;font-weight:700;font-size:11.5px;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="app-header">
+    <div class="brand">GutCheck<small>food · water · medicine · symptoms</small></div>
+    <button class="iconbtn" id="exportBtn" title="Export data as JSON">Export</button>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="diary">Diary</button>
+    <button class="tab" data-tab="bowel">Bowel Log</button>
+    <button class="tab" data-tab="trends">Trends</button>
+  </div>
+
+  <!-- DIARY TAB -->
+  <div id="tab-diary">
+    <div class="daybar">
+      <button class="navbtn" id="prevDay">‹</button>
+      <div class="datepick" id="datePick">
+        <span id="dateLabel">—</span>
+      </div>
+      <button class="navbtn" id="nextDay">›</button>
+      <div class="calendar-pop hidden" id="calPop"></div>
+    </div>
+    <div style="text-align:right;margin-bottom:10px;">
+      <button class="addbtn" id="addEntryBtn">+ Add Entry</button>
+    </div>
+    <div id="entryList"></div>
+  </div>
+
+  <!-- BOWEL TAB -->
+  <div id="tab-bowel" style="display:none;">
+    <div class="daybar">
+      <button class="navbtn" id="prevDayB">‹</button>
+      <div class="datepick" id="datePickB"><span id="dateLabelB">—</span></div>
+      <button class="navbtn" id="nextDayB">›</button>
+    </div>
+    <div class="bowel-safety">Black, tarry, or bloody stool is worth mentioning to your doctor soon — this log can help you describe it accurately.</div>
+    <div style="text-align:right;margin-bottom:10px;">
+      <button class="addbtn" id="addBowelBtn">+ Add Bowel Entry</button>
+    </div>
+    <div id="bowelList"></div>
+  </div>
+
+  <!-- TRENDS TAB -->
+  <div id="tab-trends" style="display:none;">
+    <div class="stat-cards" id="statCards"></div>
+    <div class="group-label">Possible triggers</div>
+    <div id="triggerList"></div>
+  </div>
+
+  <footer class="foot">
+    Stored locally in this browser (JSON, no server). <button id="importBtn">Import backup</button>
+    <input type="file" id="importFile" accept="application/json" style="display:none;">
+  </footer>
+</div>
+
+<!-- ENTRY MODAL -->
+<div class="overlay hidden" id="entryOverlay">
+  <div class="modal">
+    <h2 id="entryModalTitle">Add Entry</h2>
+    <div class="row2">
+      <div class="field"><label>Date</label><input type="date" id="f-date"></div>
+      <div class="field"><label>Time</label><input type="time" id="f-time"></div>
+    </div>
+    <div class="field">
+      <label>What was consumed</label>
+      <select id="f-type">
+        <option value="food">Food</option>
+        <option value="water">Water</option>
+        <option value="medicine">Medicine</option>
+      </select>
+    </div>
+    <div class="field" id="f-food-wrap">
+      <label>What did you eat?</label>
+      <input type="text" id="f-food" placeholder="e.g., grilled chicken salad">
+    </div>
+    <div class="field" id="f-water-wrap" style="display:none;">
+      <label>How much did you drink?</label>
+      <select id="f-water"></select>
+    </div>
+    <div class="field" id="f-med-wrap" style="display:none;">
+      <label>What medicine did you take? (optional)</label>
+      <input type="text" id="f-med" placeholder="optional">
+    </div>
+    <div id="priorWarn"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="entryCancel">Cancel</button>
+      <button class="btn-save" id="entrySave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- BOWEL MODAL -->
+<div class="overlay hidden" id="bowelOverlay">
+  <div class="modal">
+    <h2>Add Bowel Entry</h2>
+    <div class="row2">
+      <div class="field"><label>Date</label><input type="date" id="b-date"></div>
+      <div class="field"><label>Time</label><input type="time" id="b-time"></div>
+    </div>
+    <div class="field">
+      <label>Characteristics (select all that apply)</label>
+      <div class="checkgrid">
+        <label class="checkopt"><input type="checkbox" value="solid"> Solid</label>
+        <label class="checkopt"><input type="checkbox" value="liquid"> Liquid / watery</label>
+        <label class="checkopt risky"><input type="checkbox" value="tarry"> Tarry</label>
+        <label class="checkopt risky"><input type="checkbox" value="black"> Black</label>
+        <label class="checkopt risky"><input type="checkbox" value="blood"> Blood present</label>
+        <label class="checkopt"><input type="checkbox" value="mucus"> Mucus present</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Also noticed (optional)</label>
+      <div class="checkgrid">
+        <label class="checkopt"><input type="checkbox" value="painDuring"> Pain during movement</label>
+        <label class="checkopt"><input type="checkbox" value="straining"> Straining / urgency</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Notes (optional)</label>
+      <textarea id="b-notes" rows="2" placeholder="anything else worth noting"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="bowelCancel">Cancel</button>
+      <button class="btn-save" id="bowelSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var STORE_KEY = "gutLogData";
+  var storageOK = true;
+  var data = { entries: [], bowel: [] };
+
+  function loadData(){
+    try{
+      var raw = localStorage.getItem(STORE_KEY);
+      if(raw) data = JSON.parse(raw);
+      if(!data.entries) data.entries = [];
+      if(!data.bowel) data.bowel = [];
+    }catch(e){
+      storageOK = false;
+      console.error("Storage unavailable", e);
+    }
+  }
+  function saveData(){
+    try{
+      localStorage.setItem(STORE_KEY, JSON.stringify(data));
+    }catch(e){
+      storageOK = false;
+      alert("Could not save — your browser may be blocking local storage (e.g. private browsing).");
+    }
+  }
+  loadData();
+
+  function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+  function pad(n){ return n<10 ? "0"+n : ""+n; }
+  function todayISO(){ var d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+  function nowHM(){ var d=new Date(); return pad(d.getHours())+":"+pad(d.getMinutes()); }
+  function fmtDateLabel(iso){
+    var d = new Date(iso+"T00:00:00");
+    var opts = { weekday:'short', month:'short', day:'numeric' };
+    var label = d.toLocaleDateString(undefined, opts);
+    var isToday = iso === todayISO();
+    return label + (isToday ? "  ·  Today" : "");
+  }
+  function fmtTime(hm){
+    var parts = hm.split(":"); var h = parseInt(parts[0],10); var m = parts[1];
+    var ap = h>=12 ? "PM" : "AM"; var h12 = h%12; if(h12===0) h12=12;
+    return h12+":"+m+" "+ap;
+  }
+
+  var currentDate = todayISO();
+  var currentDateB = todayISO();
+  var activeTab = "diary";
+
+  // ---------- Tabs ----------
+  document.querySelectorAll(".tab").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      document.querySelectorAll(".tab").forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      activeTab = btn.dataset.tab;
+      document.getElementById("tab-diary").style.display = activeTab==="diary" ? "" : "none";
+      document.getElementById("tab-bowel").style.display = activeTab==="bowel" ? "" : "none";
+      document.getElementById("tab-trends").style.display = activeTab==="trends" ? "" : "none";
+      if(activeTab==="trends") renderTrends();
+      closeCalendar();
+    });
+  });
+
+  // ---------- Diary day nav ----------
+  function shiftDate(iso, delta){
+    var d = new Date(iso+"T00:00:00");
+    d.setDate(d.getDate()+delta);
+    return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+  }
+  document.getElementById("prevDay").addEventListener("click", function(){ currentDate = shiftDate(currentDate,-1); renderDiary(); });
+  document.getElementById("nextDay").addEventListener("click", function(){ currentDate = shiftDate(currentDate,1); renderDiary(); });
+  document.getElementById("prevDayB").addEventListener("click", function(){ currentDateB = shiftDate(currentDateB,-1); renderBowel(); });
+  document.getElementById("nextDayB").addEventListener("click", function(){ currentDateB = shiftDate(currentDateB,1); renderBowel(); });
+
+  // ---------- Calendar popover (diary) ----------
+  var calMonth; // Date, first of month being shown
+  document.getElementById("datePick").addEventListener("click", function(e){
+    e.stopPropagation();
+    var pop = document.getElementById("calPop");
+    if(pop.classList.contains("hidden")){
+      calMonth = new Date(currentDate+"T00:00:00");
+      calMonth.setDate(1);
+      renderCalendar();
+      pop.classList.remove("hidden");
+    } else { closeCalendar(); }
+  });
+  document.addEventListener("click", closeCalendar);
+  function closeCalendar(){ document.getElementById("calPop").classList.add("hidden"); }
+
+  function renderCalendar(){
+    var pop = document.getElementById("calPop");
+    var y = calMonth.getFullYear(), m = calMonth.getMonth();
+    var monthLabel = calMonth.toLocaleDateString(undefined,{month:'long', year:'numeric'});
+    var firstDow = new Date(y,m,1).getDay();
+    var daysInMonth = new Date(y,m+1,0).getDate();
+    var datesWithEntries = {};
+    data.entries.forEach(function(e){ datesWithEntries[e.date]=true; });
+
+    var html = '<div class="cal-head"><button class="navbtn" id="calPrev" style="width:26px;height:26px;">‹</button>' +
+      '<span>'+monthLabel+'</span>' +
+      '<button class="navbtn" id="calNext" style="width:26px;height:26px;">›</button></div>';
+    html += '<div class="cal-grid">';
+    ["S","M","T","W","T","F","S"].forEach(function(d){ html += '<div class="dow">'+d+'</div>'; });
+    for(var i=0;i<firstDow;i++) html += '<div></div>';
+    for(var day=1; day<=daysInMonth; day++){
+      var iso = y+"-"+pad(m+1)+"-"+pad(day);
+      var cls = [];
+      if(iso===todayISO()) cls.push("today");
+      if(iso===currentDate) cls.push("selected");
+      html += '<button class="'+cls.join(" ")+'" data-iso="'+iso+'">'+day+(datesWithEntries[iso]?'<span class="dot"></span>':'')+'</button>';
+    }
+    html += '</div>';
+    pop.innerHTML = html;
+    pop.querySelectorAll("button[data-iso]").forEach(function(b){
+      b.addEventListener("click", function(ev){
+        ev.stopPropagation();
+        currentDate = b.dataset.iso;
+        renderDiary();
+        closeCalendar();
+      });
+    });
+    document.getElementById("calPrev").addEventListener("click", function(ev){ ev.stopPropagation(); calMonth.setMonth(calMonth.getMonth()-1); renderCalendar(); });
+    document.getElementById("calNext").addEventListener("click", function(ev){ ev.stopPropagation(); calMonth.setMonth(calMonth.getMonth()+1); renderCalendar(); });
+    pop.addEventListener("click", function(ev){ ev.stopPropagation(); });
+  }
+
+  // ---------- Entry modal ----------
+  var editingId = null;
+  var overlay = document.getElementById("entryOverlay");
+  var waterSelect = document.getElementById("f-water");
+  for(var oz=1; oz<=64; oz++){
+    var opt = document.createElement("option"); opt.value=oz; opt.textContent = oz+" oz"; waterSelect.appendChild(opt);
+  }
+
+  document.getElementById("f-type").addEventListener("change", updateTypeFields);
+  document.getElementById("f-food").addEventListener("input", checkLiveWarning);
+  document.getElementById("f-med").addEventListener("input", checkLiveWarning);
+  function updateTypeFields(){
+    var t = document.getElementById("f-type").value;
+    document.getElementById("f-food-wrap").style.display = t==="food" ? "" : "none";
+    document.getElementById("f-water-wrap").style.display = t==="water" ? "" : "none";
+    document.getElementById("f-med-wrap").style.display = t==="medicine" ? "" : "none";
+    checkLiveWarning();
+  }
+  function checkLiveWarning(){
+    var t = document.getElementById("f-type").value;
+    var key = t==="water" ? "water" : (t==="food" ? document.getElementById("f-food").value : document.getElementById("f-med").value).trim().toLowerCase();
+    var box = document.getElementById("priorWarn");
+    if(!key){ box.innerHTML=""; return; }
+    var count = priorPainCount(t, key, editingId);
+    box.innerHTML = count>0 ? '<div class="warn-tag">⚠ This '+(t==="food"?"food":t==="medicine"?"medicine":"item")+' was documented to cause pain previously ('+count+'x)</div>' : "";
+  }
+
+  document.getElementById("addEntryBtn").addEventListener("click", function(){
+    editingId = null;
+    document.getElementById("entryModalTitle").textContent = "Add Entry";
+    document.getElementById("f-date").value = currentDate;
+    document.getElementById("f-time").value = nowHM();
+    document.getElementById("f-type").value = "food";
+    document.getElementById("f-food").value = "";
+    document.getElementById("f-med").value = "";
+    waterSelect.value = "8";
+    updateTypeFields();
+    overlay.classList.remove("hidden");
+  });
+  document.getElementById("entryCancel").addEventListener("click", function(){ overlay.classList.add("hidden"); });
+  overlay.addEventListener("click", function(e){ if(e.target===overlay) overlay.classList.add("hidden"); });
+
+  function detailOf(entry){
+    if(entry.type==="food") return entry.detail;
+    if(entry.type==="water") return entry.ounces + " oz";
+    return entry.detail || "(unspecified)";
+  }
+
+  function priorPainCount(type, detailKey, excludeId){
+    var count = 0;
+    data.entries.forEach(function(e){
+      if(e.id===excludeId) return;
+      if(e.type!==type) return;
+      var key = (e.type==="water") ? "water" : (e.detail||"").trim().toLowerCase();
+      if(key===detailKey && e.pain===true) count++;
+    });
+    return count;
+  }
+
+  document.getElementById("entrySave").addEventListener("click", function(){
+    var type = document.getElementById("f-type").value;
+    var date = document.getElementById("f-date").value || currentDate;
+    var time = document.getElementById("f-time").value || nowHM();
+    var detail = "", ounces = null;
+    if(type==="food"){
+      detail = document.getElementById("f-food").value.trim();
+      if(!detail){ alert("Please enter what you ate."); return; }
+    } else if(type==="water"){
+      ounces = parseInt(waterSelect.value,10);
+    } else {
+      detail = document.getElementById("f-med").value.trim();
+    }
+    if(editingId){
+      var e = data.entries.find(function(x){ return x.id===editingId; });
+      e.type=type; e.date=date; e.time=time; e.detail=detail; e.ounces=ounces;
+    } else {
+      data.entries.push({ id:uid(), type:type, date:date, time:time, detail:detail, ounces:ounces, pain:null });
+    }
+    saveData();
+    currentDate = date;
+    overlay.classList.add("hidden");
+    renderDiary();
+  });
+
+  function openEditEntry(id){
+    var e = data.entries.find(function(x){ return x.id===id; });
+    if(!e) return;
+    editingId = id;
+    document.getElementById("entryModalTitle").textContent = "Edit Entry";
+    document.getElementById("f-date").value = e.date;
+    document.getElementById("f-time").value = e.time;
+    document.getElementById("f-type").value = e.type;
+    document.getElementById("f-food").value = e.type==="food" ? e.detail : "";
+    document.getElementById("f-med").value = e.type==="medicine" ? e.detail : "";
+    waterSelect.value = e.ounces || 8;
+    updateTypeFields();
+    overlay.classList.remove("hidden");
+  }
+
+  function deleteEntry(id){
+    if(!confirm("Delete this entry?")) return;
+    data.entries = data.entries.filter(function(x){ return x.id!==id; });
+    saveData();
+    renderDiary();
+  }
+
+  function setPain(id, val){
+    var e = data.entries.find(function(x){ return x.id===id; });
+    if(!e) return;
+    e.pain = (e.pain===val) ? null : val; // click again to unset
+    saveData();
+    renderDiary();
+  }
+
+  // ---------- Render diary ----------
+  function timeGroup(hm){
+    var h = parseInt(hm.split(":")[0],10);
+    if(h<11) return "Morning";
+    if(h<16) return "Afternoon";
+    return "Evening";
+  }
+
+  function renderDiary(){
+    document.getElementById("dateLabel").textContent = fmtDateLabel(currentDate);
+    var list = data.entries.filter(function(e){ return e.date===currentDate; })
+      .sort(function(a,b){ return a.time.localeCompare(b.time); });
+    var container = document.getElementById("entryList");
+    if(list.length===0){
+      container.innerHTML = '<div class="empty">No entries yet for this day.<br>Tap + Add Entry to log your first item.</div>';
+      return;
+    }
+    var html = "";
+    var lastGroup = null;
+    list.forEach(function(e){
+      var g = timeGroup(e.time);
+      if(g!==lastGroup){ html += '<div class="group-label">'+g+'</div>'; lastGroup = g; }
+      var key = (e.type==="water") ? "water" : (e.detail||"").trim().toLowerCase();
+      var priorCount = priorPainCount(e.type, key, e.id);
+      html += '<div class="entry">' +
+        '<div class="entry-top">' +
+          '<div class="entry-main">' +
+            '<span class="type-chip '+e.type+'">'+e.type+'</span>' +
+            '<div class="entry-detail">'+escapeHtml(detailOf(e))+'</div>' +
+            '<div class="entry-time">'+fmtTime(e.time)+'</div>' +
+          '</div>' +
+          '<div class="entry-actions">' +
+            '<button class="iconsm" title="Edit" data-edit="'+e.id+'">✎</button>' +
+            '<button class="iconsm" title="Delete" data-del="'+e.id+'">🗑</button>' +
+          '</div>' +
+        '</div>' +
+        (priorCount>0 ? '<div class="warn-tag">⚠ Previously caused pain ('+priorCount+'x)</div>' : '') +
+        '<div class="pain-row">' +
+          '<label class="pain-opt '+(e.pain===true?'active-pain':'')+'"><input type="radio" name="pain-'+e.id+'" '+(e.pain===true?'checked':'')+' data-pain="'+e.id+'" data-val="true"> Caused pain</label>' +
+          '<label class="pain-opt ok '+(e.pain===false?'active-ok':'')+'"><input type="radio" name="pain-'+e.id+'" '+(e.pain===false?'checked':'')+' data-pain="'+e.id+'" data-val="false"> Did not cause pain</label>' +
+        '</div>' +
+      '</div>';
+    });
+    container.innerHTML = html;
+    container.querySelectorAll("[data-edit]").forEach(function(b){ b.addEventListener("click", function(){ openEditEntry(b.dataset.edit); }); });
+    container.querySelectorAll("[data-del]").forEach(function(b){ b.addEventListener("click", function(){ deleteEntry(b.dataset.del); }); });
+    container.querySelectorAll("[data-pain]").forEach(function(b){
+      b.addEventListener("click", function(){ setPain(b.dataset.pain, b.dataset.val==="true"); });
+    });
+  }
+
+  function escapeHtml(s){
+    return (s||"").replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  // ---------- Bowel log ----------
+  var bOverlay = document.getElementById("bowelOverlay");
+  document.getElementById("addBowelBtn").addEventListener("click", function(){
+    document.getElementById("b-date").value = currentDateB;
+    document.getElementById("b-time").value = nowHM();
+    bOverlay.querySelectorAll('input[type=checkbox]').forEach(function(c){ c.checked=false; });
+    document.getElementById("b-notes").value = "";
+    bOverlay.classList.remove("hidden");
+  });
+  document.getElementById("bowelCancel").addEventListener("click", function(){ bOverlay.classList.add("hidden"); });
+  bOverlay.addEventListener("click", function(e){ if(e.target===bOverlay) bOverlay.classList.add("hidden"); });
+
+  document.getElementById("bowelSave").addEventListener("click", function(){
+    var date = document.getElementById("b-date").value || currentDateB;
+    var time = document.getElementById("b-time").value || nowHM();
+    var flags = [];
+    bOverlay.querySelectorAll('input[type=checkbox]:checked').forEach(function(c){ flags.push(c.value); });
+    var notes = document.getElementById("b-notes").value.trim();
+    data.bowel.push({ id:uid(), date:date, time:time, flags:flags, notes:notes });
+    saveData();
+    currentDateB = date;
+    bOverlay.classList.add("hidden");
+    renderBowel();
+  });
+
+  var flagLabels = { solid:"Solid", liquid:"Liquid/watery", tarry:"Tarry", black:"Black", blood:"Blood present", mucus:"Mucus", painDuring:"Pain during", straining:"Straining" };
+  var riskyFlags = { tarry:1, black:1, blood:1 };
+
+  function renderBowel(){
+    document.getElementById("dateLabelB").textContent = fmtDateLabel(currentDateB);
+    var list = data.bowel.filter(function(e){ return e.date===currentDateB; })
+      .sort(function(a,b){ return a.time.localeCompare(b.time); });
+    var container = document.getElementById("bowelList");
+    if(list.length===0){
+      container.innerHTML = '<div class="empty">No bowel entries yet for this day.</div>';
+      return;
+    }
+    var html = "";
+    list.forEach(function(e){
+      html += '<div class="entry"><div class="entry-top"><div class="entry-main">' +
+        '<div class="entry-time">'+fmtTime(e.time)+'</div>' +
+        '<div class="chip-list">' + e.flags.map(function(f){
+          return '<span class="chip '+(riskyFlags[f]?'risky':'')+'">'+flagLabels[f]+'</span>';
+        }).join("") + '</div>' +
+        (e.notes ? '<div class="entry-time" style="margin-top:6px;">'+escapeHtml(e.notes)+'</div>' : '') +
+        '</div><div class="entry-actions"><button class="iconsm" title="Delete" data-bdel="'+e.id+'">🗑</button></div></div></div>';
+    });
+    container.innerHTML = html;
+    container.querySelectorAll("[data-bdel]").forEach(function(b){
+      b.addEventListener("click", function(){
+        if(!confirm("Delete this entry?")) return;
+        data.bowel = data.bowel.filter(function(x){ return x.id!==b.dataset.bdel; });
+        saveData(); renderBowel();
+      });
+    });
+  }
+
+  // ---------- Trends ----------
+  function renderTrends(){
+    var total = data.entries.length;
+    var painYes = data.entries.filter(function(e){ return e.pain===true; }).length;
+    var painNo = data.entries.filter(function(e){ return e.pain===false; }).length;
+    var painPct = (painYes+painNo)>0 ? Math.round(100*painYes/(painYes+painNo)) : 0;
+    var bowelConcern = data.bowel.filter(function(e){
+      return e.flags.indexOf("tarry")>=0 || e.flags.indexOf("black")>=0 || e.flags.indexOf("blood")>=0;
+    }).length;
+
+    var cards = [
+      { num: total, lbl: "Total entries" },
+      { num: painYes, lbl: "Marked pain" },
+      { num: painPct+"%", lbl: "Pain rate (of marked)" },
+      { num: bowelConcern, lbl: "Bowel entries w/ blood, black or tarry" }
+    ];
+    document.getElementById("statCards").innerHTML = cards.map(function(c){
+      return '<div class="stat-card"><div class="num">'+c.num+'</div><div class="lbl">'+c.lbl+'</div></div>';
+    }).join("");
+
+    // group by type+detail
+    var groups = {};
+    data.entries.forEach(function(e){
+      var key = e.type + "|" + ((e.type==="water") ? "water" : (e.detail||"").trim().toLowerCase());
+      if(!groups[key]) groups[key] = { type:e.type, label: detailOf(e), yes:0, no:0, total:0 };
+      groups[key].total++;
+      if(e.pain===true) groups[key].yes++;
+      if(e.pain===false) groups[key].no++;
+    });
+    var arr = Object.keys(groups).map(function(k){ return groups[k]; }).filter(function(g){ return g.yes>0; });
+    arr.sort(function(a,b){ return b.yes-a.yes || (b.yes/(b.yes+b.no||1)) - (a.yes/(a.yes+a.no||1)); });
+
+    var out = document.getElementById("triggerList");
+    if(arr.length===0){
+      out.innerHTML = '<div class="empty">No items marked "Caused pain" yet.</div>';
+      return;
+    }
+    out.innerHTML = arr.map(function(g){
+      var rate = Math.round(100*g.yes/(g.yes+g.no||1));
+      var high = rate>=50 && g.yes>=2;
+      return '<div class="trigger-row '+(high?'high':'')+'">' +
+        '<div class="trigger-top"><span>'+escapeHtml(g.label)+'</span><span>'+g.yes+'x pain</span></div>' +
+        '<div class="trigger-meta">'+g.total+' time(s) logged · '+rate+'% of marked instances caused pain</div>' +
+        '<div class="bar-bg"><div class="bar-fill" style="width:'+rate+'%;"></div></div>' +
+      '</div>';
+    }).join("");
+  }
+
+  // ---------- Export / Import ----------
+  document.getElementById("exportBtn").addEventListener("click", function(){
+    var blob = new Blob([JSON.stringify(data,null,2)], {type:"application/json"});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = "gutcheck-backup-"+todayISO()+".json";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+  document.getElementById("importBtn").addEventListener("click", function(){
+    document.getElementById("importFile").click();
+  });
+  document.getElementById("importFile").addEventListener("change", function(e){
+    var file = e.target.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      try{
+        var imported = JSON.parse(reader.result);
+        if(!imported.entries || !imported.bowel) throw new Error("bad format");
+        if(!confirm("This will replace all current data with the imported backup. Continue?")) return;
+        data = imported;
+        saveData();
+        renderDiary(); renderBowel(); renderTrends();
+      }catch(err){
+        alert("Could not read that file — make sure it's a Gut Log export.");
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  if(!storageOK){
+    var note = document.createElement("div");
+    note.className = "bowel-safety";
+    note.textContent = "Local storage isn't available in this browser session, so entries won't be saved after you close the page.";
+    document.querySelector(".wrap").insertBefore(note, document.querySelector(".tabs"));
+  }
+
+  renderDiary();
+  renderBowel();
+})();
+</script>
+</body>
+</html>
