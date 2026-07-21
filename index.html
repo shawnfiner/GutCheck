@@ -100,7 +100,7 @@
     padding:3px 7px;border-radius:5px;white-space:nowrap;
   }
   .type-chip.food{background:var(--accent-soft);color:var(--food);}
-  .type-chip.water{background:var(--water-soft);color:var(--water);}
+  .type-chip.liquid{background:var(--water-soft);color:var(--water);}
   .type-chip.medicine{background:var(--med-soft);color:var(--med);}
   .entry-main{flex:1;min-width:0;}
   .entry-detail{font-size:14.5px;font-weight:600;word-break:break-word;}
@@ -120,6 +120,21 @@
   .pain-opt.ok input{accent-color:var(--ok);}
   .pain-opt.active-pain{color:var(--pain);font-weight:700;}
   .pain-opt.active-ok{color:var(--ok);font-weight:700;}
+  .pain-opt.other input{accent-color:var(--warn-ink);}
+  .pain-opt.active-other{color:var(--warn-ink);font-weight:700;}
+  .other-panel{margin-top:8px;padding:10px;background:var(--warn-bg);border-radius:8px;}
+  .other-check{display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:6px;cursor:pointer;color:var(--ink);}
+  .other-note{width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;}
+
+  .pain-level{margin-top:10px;}
+  .pain-level-label{font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;}
+  .pain-level-row{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;}
+  .pl-btn{padding:6px 0;border:1px solid var(--border);background:var(--surface);border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;color:var(--ink-soft);}
+  .pl-btn:hover{border-color:var(--pain);}
+  .pl-btn.selected{background:var(--pain);color:#fff;border-color:var(--pain);}
+  .pain-level-anchors{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-soft);margin-top:5px;gap:4px;}
+  .pain-level-anchors span:nth-child(2){text-align:center;}
+  .pain-level-anchors span:last-child{text-align:right;}
 
   .empty{
     text-align:center;color:var(--ink-soft);font-size:14px;padding:40px 20px;
@@ -181,7 +196,7 @@
 
 <div class="wrap">
   <header class="app-header">
-    <div class="brand">GutCheck<small>food · water · medicine · symptoms</small></div>
+    <div class="brand">GutCheck<small>food · liquids · medicine · symptoms</small></div>
     <button class="iconbtn" id="exportBtn" title="Export data as JSON">Export</button>
   </header>
 
@@ -246,7 +261,7 @@
       <label>What was consumed</label>
       <select id="f-type">
         <option value="food">Food</option>
-        <option value="water">Water</option>
+        <option value="liquid">Liquids</option>
         <option value="medicine">Medicine</option>
       </select>
     </div>
@@ -254,9 +269,11 @@
       <label>What did you eat?</label>
       <input type="text" id="f-food" placeholder="e.g., grilled chicken salad">
     </div>
-    <div class="field" id="f-water-wrap" style="display:none;">
-      <label>How much did you drink?</label>
-      <select id="f-water"></select>
+    <div class="field" id="f-liquid-wrap" style="display:none;">
+      <label>What liquid?</label>
+      <input type="text" id="f-liquid-name" placeholder="e.g., water, coffee, juice (optional)">
+      <label style="margin-top:10px;">How much did you drink?</label>
+      <select id="f-liquid-oz"></select>
     </div>
     <div class="field" id="f-med-wrap" style="display:none;">
       <label>What medicine did you take? (optional)</label>
@@ -436,28 +453,29 @@
   // ---------- Entry modal ----------
   var editingId = null;
   var overlay = document.getElementById("entryOverlay");
-  var waterSelect = document.getElementById("f-water");
+  var liquidOzSelect = document.getElementById("f-liquid-oz");
   for(var oz=1; oz<=64; oz++){
-    var opt = document.createElement("option"); opt.value=oz; opt.textContent = oz+" oz"; waterSelect.appendChild(opt);
+    var opt = document.createElement("option"); opt.value=oz; opt.textContent = oz+" oz"; liquidOzSelect.appendChild(opt);
   }
 
   document.getElementById("f-type").addEventListener("change", updateTypeFields);
   document.getElementById("f-food").addEventListener("input", checkLiveWarning);
   document.getElementById("f-med").addEventListener("input", checkLiveWarning);
+  document.getElementById("f-liquid-name").addEventListener("input", checkLiveWarning);
   function updateTypeFields(){
     var t = document.getElementById("f-type").value;
     document.getElementById("f-food-wrap").style.display = t==="food" ? "" : "none";
-    document.getElementById("f-water-wrap").style.display = t==="water" ? "" : "none";
+    document.getElementById("f-liquid-wrap").style.display = t==="liquid" ? "" : "none";
     document.getElementById("f-med-wrap").style.display = t==="medicine" ? "" : "none";
     checkLiveWarning();
   }
   function checkLiveWarning(){
     var t = document.getElementById("f-type").value;
-    var key = t==="water" ? "water" : (t==="food" ? document.getElementById("f-food").value : document.getElementById("f-med").value).trim().toLowerCase();
+    var key = (t==="food" ? document.getElementById("f-food").value : t==="liquid" ? document.getElementById("f-liquid-name").value : document.getElementById("f-med").value).trim().toLowerCase();
     var box = document.getElementById("priorWarn");
     if(!key){ box.innerHTML=""; return; }
     var count = priorPainCount(t, key, editingId);
-    box.innerHTML = count>0 ? '<div class="warn-tag">⚠ This '+(t==="food"?"food":t==="medicine"?"medicine":"item")+' was documented to cause pain previously ('+count+'x)</div>' : "";
+    box.innerHTML = count>0 ? '<div class="warn-tag">⚠ This '+(t==="food"?"food":t==="medicine"?"medicine":"liquid")+' was documented to cause pain previously ('+count+'x)</div>' : "";
   }
 
   document.getElementById("addEntryBtn").addEventListener("click", function(){
@@ -468,7 +486,8 @@
     document.getElementById("f-type").value = "food";
     document.getElementById("f-food").value = "";
     document.getElementById("f-med").value = "";
-    waterSelect.value = "8";
+    document.getElementById("f-liquid-name").value = "";
+    liquidOzSelect.value = "8";
     updateTypeFields();
     overlay.classList.remove("hidden");
   });
@@ -476,18 +495,17 @@
   overlay.addEventListener("click", function(e){ if(e.target===overlay) overlay.classList.add("hidden"); });
 
   function detailOf(entry){
-    if(entry.type==="food") return entry.detail;
-    if(entry.type==="water") return entry.ounces + " oz";
+    if(entry.type==="liquid") return (entry.detail || "Water") + " — " + entry.ounces + " oz";
     return entry.detail || "(unspecified)";
   }
+  function groupKey(entry){ return (entry.detail||"").trim().toLowerCase(); }
 
   function priorPainCount(type, detailKey, excludeId){
     var count = 0;
     data.entries.forEach(function(e){
       if(e.id===excludeId) return;
       if(e.type!==type) return;
-      var key = (e.type==="water") ? "water" : (e.detail||"").trim().toLowerCase();
-      if(key===detailKey && e.pain===true) count++;
+      if(groupKey(e)===detailKey && e.pain===true) count++;
     });
     return count;
   }
@@ -500,8 +518,9 @@
     if(type==="food"){
       detail = document.getElementById("f-food").value.trim();
       if(!detail){ alert("Please enter what you ate."); return; }
-    } else if(type==="water"){
-      ounces = parseInt(waterSelect.value,10);
+    } else if(type==="liquid"){
+      detail = document.getElementById("f-liquid-name").value.trim();
+      ounces = parseInt(liquidOzSelect.value,10);
     } else {
       detail = document.getElementById("f-med").value.trim();
     }
@@ -527,7 +546,8 @@
     document.getElementById("f-type").value = e.type;
     document.getElementById("f-food").value = e.type==="food" ? e.detail : "";
     document.getElementById("f-med").value = e.type==="medicine" ? e.detail : "";
-    waterSelect.value = e.ounces || 8;
+    document.getElementById("f-liquid-name").value = e.type==="liquid" ? (e.detail||"") : "";
+    liquidOzSelect.value = e.ounces || 8;
     updateTypeFields();
     overlay.classList.remove("hidden");
   }
@@ -543,6 +563,33 @@
     var e = data.entries.find(function(x){ return x.id===id; });
     if(!e) return;
     e.pain = (e.pain===val) ? null : val; // click again to unset
+    if(e.pain==="other" && !e.otherSymptoms) e.otherSymptoms = [];
+    if(e.pain==="other" && e.otherNote===undefined) e.otherNote = "";
+    saveData();
+    renderDiary();
+  }
+
+  function updateOtherSymptom(id, symptom, checked){
+    var e = data.entries.find(function(x){ return x.id===id; });
+    if(!e) return;
+    if(!e.otherSymptoms) e.otherSymptoms = [];
+    var idx = e.otherSymptoms.indexOf(symptom);
+    if(checked && idx===-1) e.otherSymptoms.push(symptom);
+    if(!checked && idx!==-1) e.otherSymptoms.splice(idx,1);
+    saveData();
+  }
+
+  function updateOtherNote(id, text){
+    var e = data.entries.find(function(x){ return x.id===id; });
+    if(!e) return;
+    e.otherNote = text;
+    saveData();
+  }
+
+  function setPainLevel(id, lvl){
+    var e = data.entries.find(function(x){ return x.id===id; });
+    if(!e) return;
+    e.painLevel = (e.painLevel===lvl) ? null : lvl; // click again to unset
     saveData();
     renderDiary();
   }
@@ -569,8 +616,9 @@
     list.forEach(function(e){
       var g = timeGroup(e.time);
       if(g!==lastGroup){ html += '<div class="group-label">'+g+'</div>'; lastGroup = g; }
-      var key = (e.type==="water") ? "water" : (e.detail||"").trim().toLowerCase();
+      var key = groupKey(e);
       var priorCount = priorPainCount(e.type, key, e.id);
+      var otherSyms = e.otherSymptoms || [];
       html += '<div class="entry">' +
         '<div class="entry-top">' +
           '<div class="entry-main">' +
@@ -587,14 +635,47 @@
         '<div class="pain-row">' +
           '<label class="pain-opt '+(e.pain===true?'active-pain':'')+'"><input type="radio" name="pain-'+e.id+'" '+(e.pain===true?'checked':'')+' data-pain="'+e.id+'" data-val="true"> Caused pain</label>' +
           '<label class="pain-opt ok '+(e.pain===false?'active-ok':'')+'"><input type="radio" name="pain-'+e.id+'" '+(e.pain===false?'checked':'')+' data-pain="'+e.id+'" data-val="false"> Did not cause pain</label>' +
+          '<label class="pain-opt other '+(e.pain==="other"?'active-other':'')+'"><input type="radio" name="pain-'+e.id+'" '+(e.pain==="other"?'checked':'')+' data-pain="'+e.id+'" data-val="other"> Other</label>' +
         '</div>' +
+        ((e.pain===true || e.pain==="other") ? (
+          '<div class="pain-level">' +
+            '<div class="pain-level-label">Pain level</div>' +
+            '<div class="pain-level-row">' +
+              Array.from({length:10}, function(_,i){ return i+1; }).map(function(n){
+                return '<button type="button" class="pl-btn '+(e.painLevel===n?'selected':'')+'" data-pl="'+e.id+'" data-lvl="'+n+'">'+n+'</button>';
+              }).join("") +
+            '</div>' +
+            '<div class="pain-level-anchors"><span>1 · Very mild</span><span>5 · Painful but tolerable</span><span>10 · Intolerable, consider care</span></div>' +
+          '</div>'
+        ) : '') +
+        (e.pain==="other" ? (
+          '<div class="other-panel">' +
+            ['gurgling','gas','nausea'].map(function(s){
+              var lbl = s==="gurgling" ? "Stomach gurgling" : s==="gas" ? "Gas" : "Nausea";
+              return '<label class="other-check"><input type="checkbox" data-other-sym="'+e.id+'" data-sym="'+s+'" '+(otherSyms.indexOf(s)>=0?'checked':'')+'> '+lbl+'</label>';
+            }).join("") +
+            '<input type="text" class="other-note" placeholder="Describe (optional)" data-other-note="'+e.id+'" value="'+escapeHtml(e.otherNote||"")+'">' +
+          '</div>'
+        ) : '') +
       '</div>';
     });
     container.innerHTML = html;
     container.querySelectorAll("[data-edit]").forEach(function(b){ b.addEventListener("click", function(){ openEditEntry(b.dataset.edit); }); });
     container.querySelectorAll("[data-del]").forEach(function(b){ b.addEventListener("click", function(){ deleteEntry(b.dataset.del); }); });
     container.querySelectorAll("[data-pain]").forEach(function(b){
-      b.addEventListener("click", function(){ setPain(b.dataset.pain, b.dataset.val==="true"); });
+      b.addEventListener("click", function(){
+        var val = b.dataset.val==="true" ? true : b.dataset.val==="false" ? false : "other";
+        setPain(b.dataset.pain, val);
+      });
+    });
+    container.querySelectorAll("[data-other-sym]").forEach(function(b){
+      b.addEventListener("change", function(){ updateOtherSymptom(b.dataset.otherSym, b.dataset.sym, b.checked); });
+    });
+    container.querySelectorAll("[data-other-note]").forEach(function(b){
+      b.addEventListener("input", function(){ updateOtherNote(b.dataset.otherNote, b.value); });
+    });
+    container.querySelectorAll("[data-pl]").forEach(function(b){
+      b.addEventListener("click", function(){ setPainLevel(b.dataset.pl, parseInt(b.dataset.lvl,10)); });
     });
   }
 
@@ -667,6 +748,7 @@
     var painYes = data.entries.filter(function(e){ return e.pain===true; }).length;
     var painNo = data.entries.filter(function(e){ return e.pain===false; }).length;
     var painPct = (painYes+painNo)>0 ? Math.round(100*painYes/(painYes+painNo)) : 0;
+    var otherCount = data.entries.filter(function(e){ return e.pain==="other"; }).length;
     var bowelConcern = data.bowel.filter(function(e){
       return e.flags.indexOf("tarry")>=0 || e.flags.indexOf("black")>=0 || e.flags.indexOf("blood")>=0;
     }).length;
@@ -675,6 +757,7 @@
       { num: total, lbl: "Total entries" },
       { num: painYes, lbl: "Marked pain" },
       { num: painPct+"%", lbl: "Pain rate (of marked)" },
+      { num: otherCount, lbl: "Other reactions logged" },
       { num: bowelConcern, lbl: "Bowel entries w/ blood, black or tarry" }
     ];
     document.getElementById("statCards").innerHTML = cards.map(function(c){
@@ -684,11 +767,12 @@
     // group by type+detail
     var groups = {};
     data.entries.forEach(function(e){
-      var key = e.type + "|" + ((e.type==="water") ? "water" : (e.detail||"").trim().toLowerCase());
-      if(!groups[key]) groups[key] = { type:e.type, label: detailOf(e), yes:0, no:0, total:0 };
+      var key = e.type + "|" + groupKey(e);
+      if(!groups[key]) groups[key] = { type:e.type, label: detailOf(e), yes:0, no:0, total:0, levelSum:0, levelCount:0 };
       groups[key].total++;
       if(e.pain===true) groups[key].yes++;
       if(e.pain===false) groups[key].no++;
+      if(e.painLevel){ groups[key].levelSum += e.painLevel; groups[key].levelCount++; }
     });
     var arr = Object.keys(groups).map(function(k){ return groups[k]; }).filter(function(g){ return g.yes>0; });
     arr.sort(function(a,b){ return b.yes-a.yes || (b.yes/(b.yes+b.no||1)) - (a.yes/(a.yes+a.no||1)); });
@@ -701,9 +785,10 @@
     out.innerHTML = arr.map(function(g){
       var rate = Math.round(100*g.yes/(g.yes+g.no||1));
       var high = rate>=50 && g.yes>=2;
+      var avgLevel = g.levelCount>0 ? (g.levelSum/g.levelCount).toFixed(1) : null;
       return '<div class="trigger-row '+(high?'high':'')+'">' +
         '<div class="trigger-top"><span>'+escapeHtml(g.label)+'</span><span>'+g.yes+'x pain</span></div>' +
-        '<div class="trigger-meta">'+g.total+' time(s) logged · '+rate+'% of marked instances caused pain</div>' +
+        '<div class="trigger-meta">'+g.total+' time(s) logged · '+rate+'% of marked instances caused pain'+(avgLevel?' · avg level '+avgLevel+'/10':'')+'</div>' +
         '<div class="bar-bg"><div class="bar-fill" style="width:'+rate+'%;"></div></div>' +
       '</div>';
     }).join("");
