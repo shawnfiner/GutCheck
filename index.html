@@ -193,6 +193,28 @@
 
   footer.foot{text-align:center;margin-top:30px;font-size:11.5px;color:var(--ink-soft);}
   footer.foot button{background:none;border:none;color:var(--accent);cursor:pointer;font-weight:700;font-size:11.5px;}
+
+  .quickrange{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0;}
+  .report-controls{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border);}
+  .report-title{font-size:20px;font-weight:800;}
+  .report-sub{font-size:12.5px;color:var(--ink-soft);margin-bottom:16px;}
+  .report-section{margin-bottom:22px;}
+  .report-section h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:10px;}
+  .report-flag-box{background:var(--warn-bg);border:1px solid #EAD3A8;border-radius:8px;padding:9px 12px;margin-bottom:6px;font-size:13px;color:var(--warn-ink);font-weight:600;}
+  .report-day{margin-bottom:16px;}
+  .report-day-title{font-weight:700;font-size:13.5px;margin-bottom:3px;}
+  .report-day-note{font-style:italic;font-size:12.5px;color:var(--ink-soft);margin-bottom:6px;}
+  .report-row{display:flex;gap:10px;font-size:12.5px;padding:5px 0;border-bottom:1px solid var(--bg);}
+  .report-row .rt{color:var(--ink-soft);width:56px;flex-shrink:0;}
+  .report-row .rd{flex:1;}
+  .rflag{color:var(--pain);font-weight:700;}
+
+  @media print{
+    .app-header,.tabs,footer.foot,.report-controls,#tab-diary,#tab-bowel,#tab-trends{display:none !important;}
+    body{background:#fff;}
+    .wrap{max-width:100%;padding:0;}
+    .stat-card,.report-flag-box,.trigger-row{break-inside:avoid;}
+  }
 </style>
 </head>
 <body>
@@ -207,6 +229,7 @@
     <button class="tab active" data-tab="diary">Diary</button>
     <button class="tab" data-tab="bowel">Bowel Log</button>
     <button class="tab" data-tab="trends">Trends</button>
+    <button class="tab" data-tab="report">Report</button>
   </div>
 
   <!-- DIARY TAB -->
@@ -252,6 +275,24 @@
     <div class="stat-cards" id="statCards"></div>
     <div class="group-label">Possible triggers</div>
     <div id="triggerList"></div>
+  </div>
+
+  <!-- REPORT TAB -->
+  <div id="tab-report" style="display:none;">
+    <div class="report-controls">
+      <div class="row2">
+        <div class="field"><label>From</label><input type="date" id="rpFrom"></div>
+        <div class="field"><label>To</label><input type="date" id="rpTo"></div>
+      </div>
+      <div class="quickrange">
+        <button class="iconbtn" data-range="7">Last 7 days</button>
+        <button class="iconbtn" data-range="14">Last 14 days</button>
+        <button class="iconbtn" data-range="30">Last 30 days</button>
+        <button class="iconbtn" data-range="all">All time</button>
+      </div>
+      <button class="addbtn" id="printReportBtn" style="margin-top:12px;width:100%;">Print / Save as PDF</button>
+    </div>
+    <div id="reportPrintArea"></div>
   </div>
 
   <footer class="foot">
@@ -307,10 +348,22 @@
       <div class="field"><label>Time</label><input type="time" id="b-time"></div>
     </div>
     <div class="field">
-      <label>Characteristics (select all that apply)</label>
+      <label>Stool type (Bristol Scale)</label>
+      <select id="b-bristol">
+        <option value="">Not sure / skip</option>
+        <option value="1">Type 1 — Hard lumps (severe constipation)</option>
+        <option value="2">Type 2 — Lumpy sausage (mild constipation)</option>
+        <option value="3">Type 3 — Sausage, cracked surface (normal)</option>
+        <option value="4">Type 4 — Smooth, soft sausage (normal/ideal)</option>
+        <option value="5">Type 5 — Soft blobs, clear edges (lacking fiber)</option>
+        <option value="6">Type 6 — Mushy, ragged edges (mild diarrhea)</option>
+        <option value="7">Type 7 — Entirely liquid (diarrhea)</option>
+      </select>
+      <div class="helper">Types 1–2 = constipation, 3–4 = normal, 5–7 = loose/diarrhea.</div>
+    </div>
+    <div class="field">
+      <label>Also present (select all that apply)</label>
       <div class="checkgrid">
-        <label class="checkopt"><input type="checkbox" value="solid"> Solid</label>
-        <label class="checkopt"><input type="checkbox" value="liquid"> Liquid / watery</label>
         <label class="checkopt risky"><input type="checkbox" value="tarry"> Tarry</label>
         <label class="checkopt risky"><input type="checkbox" value="black"> Black</label>
         <label class="checkopt risky"><input type="checkbox" value="blood"> Blood present</label>
@@ -394,7 +447,9 @@
       document.getElementById("tab-diary").style.display = activeTab==="diary" ? "" : "none";
       document.getElementById("tab-bowel").style.display = activeTab==="bowel" ? "" : "none";
       document.getElementById("tab-trends").style.display = activeTab==="trends" ? "" : "none";
+      document.getElementById("tab-report").style.display = activeTab==="report" ? "" : "none";
       if(activeTab==="trends") renderTrends();
+      if(activeTab==="report") renderReport();
       closeCalendar();
     });
   });
@@ -709,6 +764,7 @@
   document.getElementById("addBowelBtn").addEventListener("click", function(){
     document.getElementById("b-date").value = currentDateB;
     document.getElementById("b-time").value = nowHM();
+    document.getElementById("b-bristol").value = "";
     bOverlay.querySelectorAll('input[type=checkbox]').forEach(function(c){ c.checked=false; });
     document.getElementById("b-notes").value = "";
     bOverlay.classList.remove("hidden");
@@ -719,17 +775,19 @@
   document.getElementById("bowelSave").addEventListener("click", function(){
     var date = document.getElementById("b-date").value || currentDateB;
     var time = document.getElementById("b-time").value || nowHM();
+    var bristolType = document.getElementById("b-bristol").value ? parseInt(document.getElementById("b-bristol").value,10) : null;
     var flags = [];
     bOverlay.querySelectorAll('input[type=checkbox]:checked').forEach(function(c){ flags.push(c.value); });
     var notes = document.getElementById("b-notes").value.trim();
-    data.bowel.push({ id:uid(), date:date, time:time, flags:flags, notes:notes });
+    data.bowel.push({ id:uid(), date:date, time:time, bristolType:bristolType, flags:flags, notes:notes });
     saveData();
     currentDateB = date;
     bOverlay.classList.add("hidden");
     renderBowel();
   });
 
-  var flagLabels = { solid:"Solid", liquid:"Liquid/watery", tarry:"Tarry", black:"Black", blood:"Blood present", mucus:"Mucus", painDuring:"Pain during", straining:"Straining" };
+  var bristolLabels = {1:"Type 1 · Hard lumps",2:"Type 2 · Lumpy sausage",3:"Type 3 · Cracked sausage",4:"Type 4 · Smooth sausage",5:"Type 5 · Soft blobs",6:"Type 6 · Mushy",7:"Type 7 · Liquid"};
+  var flagLabels = { tarry:"Tarry", black:"Black", blood:"Blood present", mucus:"Mucus", painDuring:"Pain during", straining:"Straining" };
   var riskyFlags = { tarry:1, black:1, blood:1 };
 
   function renderBowel(){
@@ -746,7 +804,9 @@
     list.forEach(function(e){
       html += '<div class="entry"><div class="entry-top"><div class="entry-main">' +
         '<div class="entry-time">'+fmtTime(e.time)+'</div>' +
-        '<div class="chip-list">' + e.flags.map(function(f){
+        '<div class="chip-list">' +
+          (e.bristolType ? '<span class="chip">'+bristolLabels[e.bristolType]+'</span>' : '') +
+          e.flags.map(function(f){
           return '<span class="chip '+(riskyFlags[f]?'risky':'')+'">'+flagLabels[f]+'</span>';
         }).join("") + '</div>' +
         (e.notes ? '<div class="entry-time" style="margin-top:6px;">'+escapeHtml(e.notes)+'</div>' : '') +
@@ -813,6 +873,139 @@
       '</div>';
     }).join("");
   }
+
+  // ---------- Report ----------
+  function renderReport(){
+    if(!document.getElementById("rpFrom").value){
+      var d = new Date(); d.setDate(d.getDate()-13);
+      document.getElementById("rpFrom").value = d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+      document.getElementById("rpTo").value = todayISO();
+    }
+    var from = document.getElementById("rpFrom").value;
+    var to = document.getElementById("rpTo").value;
+    if(from>to){ var t=from; from=to; to=t; }
+
+    var entriesInRange = data.entries.filter(function(e){ return e.date>=from && e.date<=to; });
+    var bowelInRange = data.bowel.filter(function(e){ return e.date>=from && e.date<=to; });
+
+    var flagRows = [];
+    bowelInRange.forEach(function(e){
+      var risky = e.flags.filter(function(f){ return riskyFlags[f]; });
+      if(risky.length>0) flagRows.push(fmtDateLabel(e.date)+' at '+fmtTime(e.time)+' — '+risky.map(function(f){return flagLabels[f];}).join(", "));
+    });
+    entriesInRange.forEach(function(e){
+      if(e.painLevel && e.painLevel>=9) flagRows.push(fmtDateLabel(e.date)+' at '+fmtTime(e.time)+' — pain level '+e.painLevel+'/10 ('+escapeHtml(detailOf(e))+')');
+    });
+
+    var days = {};
+    entriesInRange.forEach(function(e){ days[e.date]=1; });
+    bowelInRange.forEach(function(e){ days[e.date]=1; });
+    var dayCount = Object.keys(days).length;
+    var painCount = entriesInRange.filter(function(e){ return e.pain===true; }).length;
+
+    var groups = {};
+    entriesInRange.forEach(function(e){
+      var key = e.type+"|"+groupKey(e);
+      if(!groups[key]) groups[key] = {label:detailOf(e),yes:0,no:0,total:0,levelSum:0,levelCount:0};
+      groups[key].total++;
+      if(e.pain===true) groups[key].yes++;
+      if(e.pain===false) groups[key].no++;
+      if(e.painLevel){ groups[key].levelSum+=e.painLevel; groups[key].levelCount++; }
+    });
+    var triggerArr = Object.keys(groups).map(function(k){return groups[k];}).filter(function(g){return g.yes>0;});
+    triggerArr.sort(function(a,b){ return b.yes-a.yes; });
+
+    var bristolCounts = {1:0,2:0,3:0,4:0,5:0,6:0,7:0};
+    bowelInRange.forEach(function(e){ if(e.bristolType) bristolCounts[e.bristolType]++; });
+    var constipated = bristolCounts[1]+bristolCounts[2];
+    var normalStool = bristolCounts[3]+bristolCounts[4];
+    var loose = bristolCounts[5]+bristolCounts[6]+bristolCounts[7];
+
+    var allDates = Object.keys(days).sort();
+    var timelineHtml = allDates.map(function(d){
+      var dayEntries = entriesInRange.filter(function(e){return e.date===d;}).map(function(e){ return {time:e.time, kind:'intake', ref:e}; });
+      var dayBowel = bowelInRange.filter(function(e){return e.date===d;}).map(function(e){ return {time:e.time, kind:'bowel', ref:e}; });
+      var merged = dayEntries.concat(dayBowel).sort(function(a,b){return a.time.localeCompare(b.time);});
+      var note = getDayNote(d);
+      var rows = merged.map(function(m){
+        var e = m.ref;
+        if(m.kind==='intake'){
+          var painText = e.pain===true ? '<span class="rflag">Caused pain'+(e.painLevel?' ('+e.painLevel+'/10)':'')+'</span>'
+            : e.pain===false ? 'No reaction'
+            : e.pain==="other" ? '<span class="rflag">Other: '+(((e.otherSymptoms||[]).join(", "))||"—")+(e.otherNote?" — "+escapeHtml(e.otherNote):"")+'</span>'
+            : 'Not marked';
+          return '<div class="report-row"><div class="rt">'+fmtTime(e.time)+'</div><div class="rd"><strong>'+e.type.charAt(0).toUpperCase()+e.type.slice(1)+':</strong> '+escapeHtml(detailOf(e))+' — '+painText+'</div></div>';
+        } else {
+          var risky = e.flags.filter(function(f){return riskyFlags[f];});
+          var other = e.flags.filter(function(f){return !riskyFlags[f];});
+          var parts = [];
+          if(e.bristolType) parts.push(bristolLabels[e.bristolType]);
+          if(risky.length) parts.push('<span class="rflag">'+risky.map(function(f){return flagLabels[f];}).join(", ")+'</span>');
+          if(other.length) parts.push(other.map(function(f){return flagLabels[f];}).join(", "));
+          if(e.notes) parts.push(escapeHtml(e.notes));
+          return '<div class="report-row"><div class="rt">'+fmtTime(e.time)+'</div><div class="rd"><strong>Bowel movement:</strong> '+(parts.join(" · ")||"logged")+'</div></div>';
+        }
+      }).join("");
+      return '<div class="report-day"><div class="report-day-title">'+fmtDateLabel(d)+'</div>' +
+        (note ? '<div class="report-day-note">Notes: '+escapeHtml(note)+'</div>' : '') + rows + '</div>';
+    }).join("");
+
+    var html = '<div class="report-title">GutCheck Symptom Report</div>' +
+      '<div class="report-sub">'+fmtDateLabel(from)+' – '+fmtDateLabel(to)+' · generated '+fmtDateLabel(todayISO())+'</div>';
+
+    if(flagRows.length>0){
+      html += '<div class="report-section"><h3>Flags to review</h3>';
+      flagRows.forEach(function(r){ html += '<div class="report-flag-box">⚠ '+r+'</div>'; });
+      html += '</div>';
+    }
+
+    html += '<div class="report-section"><h3>Summary</h3><div class="stat-cards">' +
+      '<div class="stat-card"><div class="num">'+dayCount+'</div><div class="lbl">Days logged</div></div>' +
+      '<div class="stat-card"><div class="num">'+entriesInRange.length+'</div><div class="lbl">Food/liquid/med entries</div></div>' +
+      '<div class="stat-card"><div class="num">'+painCount+'</div><div class="lbl">Marked pain</div></div>' +
+      '<div class="stat-card"><div class="num">'+bowelInRange.length+'</div><div class="lbl">Bowel movements</div></div>' +
+    '</div></div>';
+
+    html += '<div class="report-section"><h3>Possible trigger foods / liquids / medicines</h3>';
+    if(triggerArr.length===0){ html += '<div class="empty">None marked in this range.</div>'; }
+    else { triggerArr.forEach(function(g){
+        var rate = Math.round(100*g.yes/(g.yes+g.no||1));
+        var avgLevel = g.levelCount>0 ? (g.levelSum/g.levelCount).toFixed(1) : null;
+        html += '<div class="trigger-row"><div class="trigger-top"><span>'+escapeHtml(g.label)+'</span><span>'+g.yes+'x pain</span></div>' +
+          '<div class="trigger-meta">'+g.total+' time(s) logged · '+rate+'% of marked instances'+(avgLevel?' · avg level '+avgLevel+'/10':'')+'</div></div>';
+    }); }
+    html += '</div>';
+
+    html += '<div class="report-section"><h3>Bowel pattern (Bristol Scale)</h3><div class="stat-cards">' +
+      '<div class="stat-card"><div class="num">'+constipated+'</div><div class="lbl">Type 1–2 (constipation)</div></div>' +
+      '<div class="stat-card"><div class="num">'+normalStool+'</div><div class="lbl">Type 3–4 (normal)</div></div>' +
+      '<div class="stat-card"><div class="num">'+loose+'</div><div class="lbl">Type 5–7 (loose/diarrhea)</div></div>' +
+    '</div></div>';
+
+    html += '<div class="report-section"><h3>Day-by-day log</h3>' + (timelineHtml || '<div class="empty">No entries in this range.</div>') + '</div>';
+    html += '<div class="report-sub">Patient-reported log generated via GutCheck. Not a diagnostic tool.</div>';
+
+    document.getElementById("reportPrintArea").innerHTML = html;
+  }
+
+  document.querySelectorAll(".quickrange button").forEach(function(b){
+    b.addEventListener("click", function(){
+      var to = todayISO(); var from;
+      if(b.dataset.range==="all"){
+        var allDatesArr = data.entries.map(function(e){return e.date;}).concat(data.bowel.map(function(e){return e.date;}));
+        from = allDatesArr.length ? allDatesArr.sort()[0] : to;
+      } else {
+        var d = new Date(); d.setDate(d.getDate()-(parseInt(b.dataset.range,10)-1));
+        from = d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+      }
+      document.getElementById("rpFrom").value = from;
+      document.getElementById("rpTo").value = to;
+      renderReport();
+    });
+  });
+  document.getElementById("rpFrom").addEventListener("change", renderReport);
+  document.getElementById("rpTo").addEventListener("change", renderReport);
+  document.getElementById("printReportBtn").addEventListener("click", function(){ window.print(); });
 
   // ---------- Export / Import ----------
   document.getElementById("exportBtn").addEventListener("click", function(){
