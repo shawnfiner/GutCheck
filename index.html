@@ -126,6 +126,9 @@
   .other-check{display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:6px;cursor:pointer;color:var(--ink);}
   .other-note{width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;}
 
+  .daynote-wrap{margin-bottom:14px;}
+  .daynote{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13.5px;font-family:inherit;color:var(--ink);resize:vertical;background:#fff;}
+
   .pain-level{margin-top:10px;}
   .pain-level-label{font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;}
   .pain-level-row{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;}
@@ -216,6 +219,10 @@
       <button class="navbtn" id="nextDay">›</button>
       <div class="calendar-pop hidden" id="calPop"></div>
     </div>
+    <div class="daynote-wrap">
+      <div class="group-label" style="margin-top:0;">Daily notes</div>
+      <textarea class="daynote" id="dayNote" rows="2" placeholder="Overall feeling, stress, activity, anything else worth noting for the day"></textarea>
+    </div>
     <div style="text-align:right;margin-bottom:10px;">
       <button class="addbtn" id="addEntryBtn">+ Add Entry</button>
     </div>
@@ -228,6 +235,10 @@
       <button class="navbtn" id="prevDayB">‹</button>
       <div class="datepick" id="datePickB"><span id="dateLabelB">—</span></div>
       <button class="navbtn" id="nextDayB">›</button>
+    </div>
+    <div class="daynote-wrap">
+      <div class="group-label" style="margin-top:0;">Daily notes</div>
+      <textarea class="daynote" id="dayNoteB" rows="2" placeholder="Overall feeling, stress, activity, anything else worth noting for the day"></textarea>
     </div>
     <div class="bowel-safety">Black, tarry, or bloody stool is worth mentioning to your doctor soon — this log can help you describe it accurately.</div>
     <div style="text-align:right;margin-bottom:10px;">
@@ -329,7 +340,7 @@
   "use strict";
   var STORE_KEY = "gutLogData";
   var storageOK = true;
-  var data = { entries: [], bowel: [] };
+  var data = { entries: [], bowel: [], dailyNotes: {} };
 
   function loadData(){
     try{
@@ -337,6 +348,7 @@
       if(raw) data = JSON.parse(raw);
       if(!data.entries) data.entries = [];
       if(!data.bowel) data.bowel = [];
+      if(!data.dailyNotes) data.dailyNotes = {};
     }catch(e){
       storageOK = false;
       console.error("Storage unavailable", e);
@@ -397,6 +409,12 @@
   document.getElementById("nextDay").addEventListener("click", function(){ currentDate = shiftDate(currentDate,1); renderDiary(); });
   document.getElementById("prevDayB").addEventListener("click", function(){ currentDateB = shiftDate(currentDateB,-1); renderBowel(); });
   document.getElementById("nextDayB").addEventListener("click", function(){ currentDateB = shiftDate(currentDateB,1); renderBowel(); });
+
+  // ---------- Daily notes ----------
+  function getDayNote(iso){ return data.dailyNotes[iso] || ""; }
+  function setDayNote(iso, text){ data.dailyNotes[iso] = text; saveData(); }
+  document.getElementById("dayNote").addEventListener("input", function(){ setDayNote(currentDate, this.value); });
+  document.getElementById("dayNoteB").addEventListener("input", function(){ setDayNote(currentDateB, this.value); });
 
   // ---------- Calendar popover (diary) ----------
   var calMonth; // Date, first of month being shown
@@ -604,6 +622,7 @@
 
   function renderDiary(){
     document.getElementById("dateLabel").textContent = fmtDateLabel(currentDate);
+    document.getElementById("dayNote").value = getDayNote(currentDate);
     var list = data.entries.filter(function(e){ return e.date===currentDate; })
       .sort(function(a,b){ return a.time.localeCompare(b.time); });
     var container = document.getElementById("entryList");
@@ -715,6 +734,7 @@
 
   function renderBowel(){
     document.getElementById("dateLabelB").textContent = fmtDateLabel(currentDateB);
+    document.getElementById("dayNoteB").value = getDayNote(currentDateB);
     var list = data.bowel.filter(function(e){ return e.date===currentDateB; })
       .sort(function(a,b){ return a.time.localeCompare(b.time); });
     var container = document.getElementById("bowelList");
@@ -816,6 +836,7 @@
         if(!imported.entries || !imported.bowel) throw new Error("bad format");
         if(!confirm("This will replace all current data with the imported backup. Continue?")) return;
         data = imported;
+        if(!data.dailyNotes) data.dailyNotes = {};
         saveData();
         renderDiary(); renderBowel(); renderTrends();
       }catch(err){
