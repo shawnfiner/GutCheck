@@ -129,6 +129,11 @@
   .daynote-wrap{margin-bottom:14px;}
   .daynote{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13.5px;font-family:inherit;color:var(--ink);resize:vertical;background:#fff;}
 
+  .liquid-summary{display:flex;gap:10px;margin-bottom:14px;}
+  .liquid-pill{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center;}
+  .liquid-pill .num{font-size:16px;font-weight:800;color:var(--water);}
+  .liquid-pill .lbl{font-size:10.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;}
+
   .pain-level{margin-top:10px;}
   .pain-level-label{font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;}
   .pain-level-row{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;}
@@ -246,6 +251,7 @@
       <div class="group-label" style="margin-top:0;">Daily notes</div>
       <textarea class="daynote" id="dayNote" rows="2" placeholder="Overall feeling, stress, activity, anything else worth noting for the day"></textarea>
     </div>
+    <div class="liquid-summary" id="liquidSummary"></div>
     <div style="text-align:right;margin-bottom:10px;">
       <button class="addbtn" id="addEntryBtn">+ Add Entry</button>
     </div>
@@ -342,7 +348,7 @@
 <!-- BOWEL MODAL -->
 <div class="overlay hidden" id="bowelOverlay">
   <div class="modal">
-    <h2>Add Bowel Entry</h2>
+    <h2 id="bowelModalTitle">Add Bowel Entry</h2>
     <div class="row2">
       <div class="field"><label>Date</label><input type="date" id="b-date"></div>
       <div class="field"><label>Time</label><input type="time" id="b-time"></div>
@@ -407,6 +413,29 @@
       console.error("Storage unavailable", e);
     }
   }
+  function migrateOtherToPain(){
+    var changed = false;
+    data.entries.forEach(function(e){
+      if(e.pain==="other"){
+        var syms = e.otherSymptoms || [];
+        if(syms.length>0){
+          e.pain = true;
+          e.painSymptoms = syms;
+          e.painNote = e.otherNote || "";
+          delete e.otherSymptoms;
+          delete e.otherNote;
+          changed = true;
+        } else if(e.otherSymptoms){
+          delete e.otherSymptoms;
+          changed = true;
+        }
+      } else if(e.otherSymptoms){
+        delete e.otherSymptoms;
+        changed = true;
+      }
+    });
+    if(changed) saveData();
+  }
   function saveData(){
     try{
       localStorage.setItem(STORE_KEY, JSON.stringify(data));
@@ -416,6 +445,7 @@
     }
   }
   loadData();
+  migrateOtherToPain();
 
   function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
   function pad(n){ return n<10 ? "0"+n : ""+n; }
@@ -636,19 +666,29 @@
     var e = data.entries.find(function(x){ return x.id===id; });
     if(!e) return;
     e.pain = (e.pain===val) ? null : val; // click again to unset
-    if(e.pain==="other" && !e.otherSymptoms) e.otherSymptoms = [];
+    if(e.pain===true){
+      if(!e.painSymptoms) e.painSymptoms = [];
+      if(e.painNote===undefined) e.painNote = "";
+    }
     if(e.pain==="other" && e.otherNote===undefined) e.otherNote = "";
     saveData();
     renderDiary();
   }
 
-  function updateOtherSymptom(id, symptom, checked){
+  function updatePainSymptom(id, symptom, checked){
     var e = data.entries.find(function(x){ return x.id===id; });
     if(!e) return;
-    if(!e.otherSymptoms) e.otherSymptoms = [];
-    var idx = e.otherSymptoms.indexOf(symptom);
-    if(checked && idx===-1) e.otherSymptoms.push(symptom);
-    if(!checked && idx!==-1) e.otherSymptoms.splice(idx,1);
+    if(!e.painSymptoms) e.painSymptoms = [];
+    var idx = e.painSymptoms.indexOf(symptom);
+    if(checked && idx===-1) e.painSymptoms.push(symptom);
+    if(!checked && idx!==-1) e.painSymptoms.splice(idx,1);
+    saveData();
+  }
+
+  function updatePainNote(id, text){
+    var e = data.entries.find(function(x){ return x.id===id; });
+    if(!e) return;
+    e.painNote = text;
     saveData();
   }
 
@@ -675,11 +715,25 @@
     return "Evening";
   }
 
+  function isWaterEntry(e){ return !e.detail || e.detail.trim().toLowerCase()==="water"; }
+  function liquidTotals(list){
+    var water=0, other=0;
+    list.forEach(function(e){
+      if(e.type!=="liquid") return;
+      if(isWaterEntry(e)) water += (e.ounces||0); else other += (e.ounces||0);
+    });
+    return { water:water, other:other };
+  }
+
   function renderDiary(){
     document.getElementById("dateLabel").textContent = fmtDateLabel(currentDate);
     document.getElementById("dayNote").value = getDayNote(currentDate);
     var list = data.entries.filter(function(e){ return e.date===currentDate; })
       .sort(function(a,b){ return a.time.localeCompare(b.time); });
+    var lt = liquidTotals(list);
+    document.getElementById("liquidSummary").innerHTML =
+      '<div class="liquid-pill"><div class="num">'+lt.water+' oz</div><div class="lbl">Water</div></div>' +
+      '<div class="liquid-pill"><div class="num">'+lt.other+' oz</div><div class="lbl">Other liquids</div></div>';
     var container = document.getElementById("entryList");
     if(list.length===0){
       container.innerHTML = '<div class="empty">No entries yet for this day.<br>Tap + Add Entry to log your first item.</div>';
@@ -692,7 +746,7 @@
       if(g!==lastGroup){ html += '<div class="group-label">'+g+'</div>'; lastGroup = g; }
       var key = groupKey(e);
       var priorCount = priorPainCount(e.type, key, e.id);
-      var otherSyms = e.otherSymptoms || [];
+      var painSyms = e.painSymptoms || [];
       html += '<div class="entry">' +
         '<div class="entry-top">' +
           '<div class="entry-main">' +
@@ -722,12 +776,17 @@
             '<div class="pain-level-anchors"><span>1 · Very mild</span><span>5 · Painful but tolerable</span><span>10 · Intolerable, consider care</span></div>' +
           '</div>'
         ) : '') +
-        (e.pain==="other" ? (
+        (e.pain===true ? (
           '<div class="other-panel">' +
             ['gurgling','gas','nausea'].map(function(s){
               var lbl = s==="gurgling" ? "Stomach gurgling" : s==="gas" ? "Gas" : "Nausea";
-              return '<label class="other-check"><input type="checkbox" data-other-sym="'+e.id+'" data-sym="'+s+'" '+(otherSyms.indexOf(s)>=0?'checked':'')+'> '+lbl+'</label>';
+              return '<label class="other-check"><input type="checkbox" data-pain-sym="'+e.id+'" data-sym="'+s+'" '+(painSyms.indexOf(s)>=0?'checked':'')+'> '+lbl+'</label>';
             }).join("") +
+            '<input type="text" class="other-note" placeholder="Describe (optional)" data-pain-note="'+e.id+'" value="'+escapeHtml(e.painNote||"")+'">' +
+          '</div>'
+        ) : '') +
+        (e.pain==="other" ? (
+          '<div class="other-panel">' +
             '<input type="text" class="other-note" placeholder="Describe (optional)" data-other-note="'+e.id+'" value="'+escapeHtml(e.otherNote||"")+'">' +
           '</div>'
         ) : '') +
@@ -742,8 +801,11 @@
         setPain(b.dataset.pain, val);
       });
     });
-    container.querySelectorAll("[data-other-sym]").forEach(function(b){
-      b.addEventListener("change", function(){ updateOtherSymptom(b.dataset.otherSym, b.dataset.sym, b.checked); });
+    container.querySelectorAll("[data-pain-sym]").forEach(function(b){
+      b.addEventListener("change", function(){ updatePainSymptom(b.dataset.painSym, b.dataset.sym, b.checked); });
+    });
+    container.querySelectorAll("[data-pain-note]").forEach(function(b){
+      b.addEventListener("input", function(){ updatePainNote(b.dataset.painNote, b.value); });
     });
     container.querySelectorAll("[data-other-note]").forEach(function(b){
       b.addEventListener("input", function(){ updateOtherNote(b.dataset.otherNote, b.value); });
@@ -761,7 +823,10 @@
 
   // ---------- Bowel log ----------
   var bOverlay = document.getElementById("bowelOverlay");
+  var editingBowelId = null;
   document.getElementById("addBowelBtn").addEventListener("click", function(){
+    editingBowelId = null;
+    document.getElementById("bowelModalTitle").textContent = "Add Bowel Entry";
     document.getElementById("b-date").value = currentDateB;
     document.getElementById("b-time").value = nowHM();
     document.getElementById("b-bristol").value = "";
@@ -772,6 +837,19 @@
   document.getElementById("bowelCancel").addEventListener("click", function(){ bOverlay.classList.add("hidden"); });
   bOverlay.addEventListener("click", function(e){ if(e.target===bOverlay) bOverlay.classList.add("hidden"); });
 
+  function openEditBowel(id){
+    var e = data.bowel.find(function(x){ return x.id===id; });
+    if(!e) return;
+    editingBowelId = id;
+    document.getElementById("bowelModalTitle").textContent = "Edit Bowel Entry";
+    document.getElementById("b-date").value = e.date;
+    document.getElementById("b-time").value = e.time;
+    document.getElementById("b-bristol").value = e.bristolType || "";
+    bOverlay.querySelectorAll('input[type=checkbox]').forEach(function(c){ c.checked = e.flags.indexOf(c.value)>=0; });
+    document.getElementById("b-notes").value = e.notes || "";
+    bOverlay.classList.remove("hidden");
+  }
+
   document.getElementById("bowelSave").addEventListener("click", function(){
     var date = document.getElementById("b-date").value || currentDateB;
     var time = document.getElementById("b-time").value || nowHM();
@@ -779,7 +857,12 @@
     var flags = [];
     bOverlay.querySelectorAll('input[type=checkbox]:checked').forEach(function(c){ flags.push(c.value); });
     var notes = document.getElementById("b-notes").value.trim();
-    data.bowel.push({ id:uid(), date:date, time:time, bristolType:bristolType, flags:flags, notes:notes });
+    if(editingBowelId){
+      var e = data.bowel.find(function(x){ return x.id===editingBowelId; });
+      e.date=date; e.time=time; e.bristolType=bristolType; e.flags=flags; e.notes=notes;
+    } else {
+      data.bowel.push({ id:uid(), date:date, time:time, bristolType:bristolType, flags:flags, notes:notes });
+    }
     saveData();
     currentDateB = date;
     bOverlay.classList.add("hidden");
@@ -810,9 +893,10 @@
           return '<span class="chip '+(riskyFlags[f]?'risky':'')+'">'+flagLabels[f]+'</span>';
         }).join("") + '</div>' +
         (e.notes ? '<div class="entry-time" style="margin-top:6px;">'+escapeHtml(e.notes)+'</div>' : '') +
-        '</div><div class="entry-actions"><button class="iconsm" title="Delete" data-bdel="'+e.id+'">🗑</button></div></div></div>';
+        '</div><div class="entry-actions"><button class="iconsm" title="Edit" data-bedit="'+e.id+'">✎</button><button class="iconsm" title="Delete" data-bdel="'+e.id+'">🗑</button></div></div></div>';
     });
     container.innerHTML = html;
+    container.querySelectorAll("[data-bedit]").forEach(function(b){ b.addEventListener("click", function(){ openEditBowel(b.dataset.bedit); }); });
     container.querySelectorAll("[data-bdel]").forEach(function(b){
       b.addEventListener("click", function(){
         if(!confirm("Delete this entry?")) return;
@@ -927,13 +1011,23 @@
       var dayBowel = bowelInRange.filter(function(e){return e.date===d;}).map(function(e){ return {time:e.time, kind:'bowel', ref:e}; });
       var merged = dayEntries.concat(dayBowel).sort(function(a,b){return a.time.localeCompare(b.time);});
       var note = getDayNote(d);
+      var dayLiquid = liquidTotals(entriesInRange.filter(function(e){return e.date===d;}));
       var rows = merged.map(function(m){
         var e = m.ref;
         if(m.kind==='intake'){
-          var painText = e.pain===true ? '<span class="rflag">Caused pain'+(e.painLevel?' ('+e.painLevel+'/10)':'')+'</span>'
-            : e.pain===false ? 'No reaction'
-            : e.pain==="other" ? '<span class="rflag">Other: '+(((e.otherSymptoms||[]).join(", "))||"—")+(e.otherNote?" — "+escapeHtml(e.otherNote):"")+'</span>'
-            : 'Not marked';
+          var painText;
+          if(e.pain===true){
+            var bits = ['Caused pain'+(e.painLevel?' ('+e.painLevel+'/10)':'')];
+            if(e.painSymptoms && e.painSymptoms.length) bits.push(e.painSymptoms.join(", "));
+            if(e.painNote) bits.push(escapeHtml(e.painNote));
+            painText = '<span class="rflag">'+bits.join(" — ")+'</span>';
+          } else if(e.pain===false){
+            painText = 'No reaction';
+          } else if(e.pain==="other"){
+            painText = '<span class="rflag">Other'+(e.otherNote?': '+escapeHtml(e.otherNote):'')+'</span>';
+          } else {
+            painText = 'Not marked';
+          }
           return '<div class="report-row"><div class="rt">'+fmtTime(e.time)+'</div><div class="rd"><strong>'+e.type.charAt(0).toUpperCase()+e.type.slice(1)+':</strong> '+escapeHtml(detailOf(e))+' — '+painText+'</div></div>';
         } else {
           var risky = e.flags.filter(function(f){return riskyFlags[f];});
@@ -947,7 +1041,9 @@
         }
       }).join("");
       return '<div class="report-day"><div class="report-day-title">'+fmtDateLabel(d)+'</div>' +
-        (note ? '<div class="report-day-note">Notes: '+escapeHtml(note)+'</div>' : '') + rows + '</div>';
+        (note ? '<div class="report-day-note">Notes: '+escapeHtml(note)+'</div>' : '') +
+        ((dayLiquid.water>0||dayLiquid.other>0) ? '<div class="report-day-note">💧 Water: '+dayLiquid.water+' oz · Other liquids: '+dayLiquid.other+' oz</div>' : '') +
+        rows + '</div>';
     }).join("");
 
     var html = '<div class="report-title">GutCheck Symptom Report</div>' +
@@ -959,11 +1055,15 @@
       html += '</div>';
     }
 
+    var rangeLiquid = liquidTotals(entriesInRange);
+
     html += '<div class="report-section"><h3>Summary</h3><div class="stat-cards">' +
       '<div class="stat-card"><div class="num">'+dayCount+'</div><div class="lbl">Days logged</div></div>' +
       '<div class="stat-card"><div class="num">'+entriesInRange.length+'</div><div class="lbl">Food/liquid/med entries</div></div>' +
       '<div class="stat-card"><div class="num">'+painCount+'</div><div class="lbl">Marked pain</div></div>' +
       '<div class="stat-card"><div class="num">'+bowelInRange.length+'</div><div class="lbl">Bowel movements</div></div>' +
+      '<div class="stat-card"><div class="num">'+rangeLiquid.water+' oz</div><div class="lbl">Total water</div></div>' +
+      '<div class="stat-card"><div class="num">'+rangeLiquid.other+' oz</div><div class="lbl">Total other liquids</div></div>' +
     '</div></div>';
 
     html += '<div class="report-section"><h3>Possible trigger foods / liquids / medicines</h3>';
