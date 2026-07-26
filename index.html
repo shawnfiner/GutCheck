@@ -18,6 +18,10 @@
     --water-soft:#E7EEF6;
     --med:#7A5C9E;
     --med-soft:#EFEAF5;
+    --exercise:#C0731A;
+    --exercise-soft:#FBEEE0;
+    --fatigue:#5B6FA6;
+    --fatigue-soft:#E9ECF5;
     --pain:#B54B3D;
     --pain-soft:#FBEAE7;
     --ok:#6B8F71;
@@ -102,6 +106,7 @@
   .type-chip.food{background:var(--accent-soft);color:var(--food);}
   .type-chip.liquid{background:var(--water-soft);color:var(--water);}
   .type-chip.medicine{background:var(--med-soft);color:var(--med);}
+  .type-chip.exercise{background:var(--exercise-soft);color:var(--exercise);}
   .entry-main{flex:1;min-width:0;}
   .entry-detail{font-size:14.5px;font-weight:600;word-break:break-word;}
   .entry-time{font-size:12px;color:var(--ink-soft);margin-top:1px;}
@@ -134,6 +139,13 @@
   .liquid-pill .num{font-size:16px;font-weight:800;color:var(--water);}
   .liquid-pill .lbl{font-size:10.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;}
 
+  .vent-row{display:flex;gap:10px;margin-bottom:14px;}
+  .vent-item{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center;}
+  .vent-btn{width:100%;background:var(--accent-soft);color:var(--food);border:none;border-radius:8px;padding:9px 0;font-size:13px;font-weight:700;cursor:pointer;}
+  .vent-btn:active{opacity:.8;}
+  .vent-meta{font-size:11px;color:var(--ink-soft);margin-top:6px;}
+  .vent-undo{background:none;border:none;color:var(--accent);font-size:11px;cursor:pointer;padding:0;font-weight:600;}
+
   .pain-level{margin-top:10px;}
   .pain-level-label{font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;}
   .pain-level-row{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;}
@@ -143,6 +155,15 @@
   .pain-level-anchors{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-soft);margin-top:5px;gap:4px;}
   .pain-level-anchors span:nth-child(2){text-align:center;}
   .pain-level-anchors span:last-child{text-align:right;}
+
+  .fatigue-level{margin-top:10px;}
+  .fatigue-level-row{display:grid;grid-template-columns:repeat(11,1fr);gap:3px;}
+  .fl-btn{padding:6px 0;border:1px solid var(--border);background:var(--surface);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;color:var(--ink-soft);}
+  .fl-btn:hover{border-color:var(--fatigue);}
+  .fl-btn.selected{background:var(--fatigue);color:#fff;border-color:var(--fatigue);}
+
+  .timing-row{display:flex;gap:10px;margin-top:8px;}
+  .timing-row .other-check{margin-bottom:0;border:1px solid var(--border);border-radius:8px;padding:6px 10px;}
 
   .empty{
     text-align:center;color:var(--ink-soft);font-size:14px;padding:40px 20px;
@@ -269,6 +290,17 @@
       <div class="group-label" style="margin-top:0;">Daily notes</div>
       <textarea class="daynote" id="dayNoteB" rows="2" placeholder="Overall feeling, stress, activity, anything else worth noting for the day"></textarea>
     </div>
+    <div class="liquid-summary" id="bmGapBar"></div>
+    <div class="vent-row">
+      <div class="vent-item">
+        <button class="vent-btn" id="gasBtn">💨 Passed gas</button>
+        <div class="vent-meta"><span id="gasCount">0</span> today · <button class="vent-undo" id="gasUndo" title="Undo last">undo</button></div>
+      </div>
+      <div class="vent-item">
+        <button class="vent-btn" id="burpBtn">🫧 Belch</button>
+        <div class="vent-meta"><span id="burpCount">0</span> today · <button class="vent-undo" id="burpUndo" title="Undo last">undo</button></div>
+      </div>
+    </div>
     <div class="bowel-safety">Black, tarry, or bloody stool is worth mentioning to your doctor soon — this log can help you describe it accurately.</div>
     <div style="text-align:right;margin-bottom:10px;">
       <button class="addbtn" id="addBowelBtn">+ Add Bowel Entry</button>
@@ -316,11 +348,12 @@
       <div class="field"><label>Time</label><input type="time" id="f-time"></div>
     </div>
     <div class="field">
-      <label>What was consumed</label>
+      <label>What was consumed / did</label>
       <select id="f-type">
         <option value="food">Food</option>
         <option value="liquid">Liquids</option>
         <option value="medicine">Medicine</option>
+        <option value="exercise">Exercise</option>
       </select>
     </div>
     <div class="field" id="f-food-wrap">
@@ -336,6 +369,29 @@
     <div class="field" id="f-med-wrap" style="display:none;">
       <label>What medicine did you take? (optional)</label>
       <input type="text" id="f-med" placeholder="optional">
+    </div>
+    <div class="field" id="f-exercise-wrap" style="display:none;">
+      <label>What kind of exercise?</label>
+      <input type="text" id="f-ex-type" list="exerciseTypesList" placeholder="e.g., walk, run, lift, yoga">
+      <datalist id="exerciseTypesList">
+        <option value="Walk"></option>
+        <option value="Run"></option>
+        <option value="Cycling"></option>
+        <option value="Strength training"></option>
+        <option value="Yoga / stretching"></option>
+        <option value="Swimming"></option>
+        <option value="Sports"></option>
+      </datalist>
+      <label style="margin-top:10px;">Duration (minutes)</label>
+      <input type="number" id="f-ex-duration" min="1" placeholder="e.g., 30">
+      <label style="margin-top:10px;">Timing relative to last meal</label>
+      <select id="f-ex-meal-timing">
+        <option value="">Not sure</option>
+        <option value="before">Right before eating</option>
+        <option value="within1">Within 1 hr after eating</option>
+        <option value="1to3">1–3 hrs after eating</option>
+        <option value="fasted">3+ hrs after eating / fasted</option>
+      </select>
     </div>
     <div id="priorWarn"></div>
     <div class="modal-actions">
@@ -399,7 +455,7 @@
   "use strict";
   var STORE_KEY = "gutLogData";
   var storageOK = true;
-  var data = { entries: [], bowel: [], dailyNotes: {} };
+  var data = { entries: [], bowel: [], dailyNotes: {}, ventLog: [] };
 
   function loadData(){
     try{
@@ -408,6 +464,7 @@
       if(!data.entries) data.entries = [];
       if(!data.bowel) data.bowel = [];
       if(!data.dailyNotes) data.dailyNotes = {};
+      if(!data.ventLog) data.ventLog = [];
     }catch(e){
       storageOK = false;
       console.error("Storage unavailable", e);
@@ -565,20 +622,29 @@
   document.getElementById("f-food").addEventListener("input", checkLiveWarning);
   document.getElementById("f-med").addEventListener("input", checkLiveWarning);
   document.getElementById("f-liquid-name").addEventListener("input", checkLiveWarning);
+  document.getElementById("f-ex-type").addEventListener("input", checkLiveWarning);
   function updateTypeFields(){
     var t = document.getElementById("f-type").value;
     document.getElementById("f-food-wrap").style.display = t==="food" ? "" : "none";
     document.getElementById("f-liquid-wrap").style.display = t==="liquid" ? "" : "none";
     document.getElementById("f-med-wrap").style.display = t==="medicine" ? "" : "none";
+    document.getElementById("f-exercise-wrap").style.display = t==="exercise" ? "" : "none";
     checkLiveWarning();
+  }
+  function typeFieldKey(t){
+    if(t==="food") return document.getElementById("f-food").value;
+    if(t==="liquid") return document.getElementById("f-liquid-name").value;
+    if(t==="exercise") return document.getElementById("f-ex-type").value;
+    return document.getElementById("f-med").value;
   }
   function checkLiveWarning(){
     var t = document.getElementById("f-type").value;
-    var key = (t==="food" ? document.getElementById("f-food").value : t==="liquid" ? document.getElementById("f-liquid-name").value : document.getElementById("f-med").value).trim().toLowerCase();
+    var key = typeFieldKey(t).trim().toLowerCase();
     var box = document.getElementById("priorWarn");
     if(!key){ box.innerHTML=""; return; }
     var count = priorPainCount(t, key, editingId);
-    box.innerHTML = count>0 ? '<div class="warn-tag">⚠ This '+(t==="food"?"food":t==="medicine"?"medicine":"liquid")+' was documented to cause pain previously ('+count+'x)</div>' : "";
+    var label = t==="food"?"food":t==="medicine"?"medicine":t==="exercise"?"activity":"liquid";
+    box.innerHTML = count>0 ? '<div class="warn-tag">⚠ This '+label+' was documented to cause pain previously ('+count+'x)</div>' : "";
   }
 
   document.getElementById("addEntryBtn").addEventListener("click", function(){
@@ -590,6 +656,9 @@
     document.getElementById("f-food").value = "";
     document.getElementById("f-med").value = "";
     document.getElementById("f-liquid-name").value = "";
+    document.getElementById("f-ex-type").value = "";
+    document.getElementById("f-ex-duration").value = "";
+    document.getElementById("f-ex-meal-timing").value = "";
     liquidOzSelect.value = "8";
     updateTypeFields();
     overlay.classList.remove("hidden");
@@ -599,6 +668,7 @@
 
   function detailOf(entry){
     if(entry.type==="liquid") return (entry.detail || "Water") + " — " + entry.ounces + " oz";
+    if(entry.type==="exercise") return (entry.detail || "Exercise") + (entry.duration ? " — "+entry.duration+" min" : "");
     return entry.detail || "(unspecified)";
   }
   function groupKey(entry){ return (entry.detail||"").trim().toLowerCase(); }
@@ -617,21 +687,29 @@
     var type = document.getElementById("f-type").value;
     var date = document.getElementById("f-date").value || currentDate;
     var time = document.getElementById("f-time").value || nowHM();
-    var detail = "", ounces = null;
+    var detail = "", ounces = null, duration = null, mealTiming = "";
     if(type==="food"){
       detail = document.getElementById("f-food").value.trim();
       if(!detail){ alert("Please enter what you ate."); return; }
     } else if(type==="liquid"){
       detail = document.getElementById("f-liquid-name").value.trim();
       ounces = parseInt(liquidOzSelect.value,10);
+    } else if(type==="exercise"){
+      detail = document.getElementById("f-ex-type").value.trim();
+      if(!detail){ alert("Please enter what kind of exercise."); return; }
+      duration = document.getElementById("f-ex-duration").value ? parseInt(document.getElementById("f-ex-duration").value,10) : null;
+      mealTiming = document.getElementById("f-ex-meal-timing").value;
     } else {
       detail = document.getElementById("f-med").value.trim();
     }
     if(editingId){
       var e = data.entries.find(function(x){ return x.id===editingId; });
       e.type=type; e.date=date; e.time=time; e.detail=detail; e.ounces=ounces;
+      if(type==="exercise"){ e.duration=duration; e.mealTiming=mealTiming; }
     } else {
-      data.entries.push({ id:uid(), type:type, date:date, time:time, detail:detail, ounces:ounces, pain:null });
+      var newE = { id:uid(), type:type, date:date, time:time, detail:detail, ounces:ounces, pain:null };
+      if(type==="exercise"){ newE.duration=duration; newE.mealTiming=mealTiming; }
+      data.entries.push(newE);
     }
     saveData();
     currentDate = date;
@@ -650,6 +728,9 @@
     document.getElementById("f-food").value = e.type==="food" ? e.detail : "";
     document.getElementById("f-med").value = e.type==="medicine" ? e.detail : "";
     document.getElementById("f-liquid-name").value = e.type==="liquid" ? (e.detail||"") : "";
+    document.getElementById("f-ex-type").value = e.type==="exercise" ? (e.detail||"") : "";
+    document.getElementById("f-ex-duration").value = e.type==="exercise" ? (e.duration||"") : "";
+    document.getElementById("f-ex-meal-timing").value = e.type==="exercise" ? (e.mealTiming||"") : "";
     liquidOzSelect.value = e.ounces || 8;
     updateTypeFields();
     overlay.classList.remove("hidden");
@@ -705,6 +786,24 @@
     e.painLevel = (e.painLevel===lvl) ? null : lvl; // click again to unset
     saveData();
     renderDiary();
+  }
+
+  function setFatigueLevel(id, lvl){
+    var e = data.entries.find(function(x){ return x.id===id; });
+    if(!e) return;
+    e.fatigueLevel = (e.fatigueLevel===lvl) ? null : lvl; // click again to unset
+    saveData();
+    renderDiary();
+  }
+
+  function updatePainTiming(id, timing, checked){
+    var e = data.entries.find(function(x){ return x.id===id; });
+    if(!e) return;
+    if(!e.painTiming) e.painTiming = [];
+    var idx = e.painTiming.indexOf(timing);
+    if(checked && idx===-1) e.painTiming.push(timing);
+    if(!checked && idx!==-1) e.painTiming.splice(idx,1);
+    saveData();
   }
 
   // ---------- Render diary ----------
@@ -765,6 +864,17 @@
           '<label class="pain-opt ok '+(e.pain===false?'active-ok':'')+'"><input type="radio" name="pain-'+e.id+'" '+(e.pain===false?'checked':'')+' data-pain="'+e.id+'" data-val="false"> Did not cause pain</label>' +
           '<label class="pain-opt other '+(e.pain==="other"?'active-other':'')+'"><input type="radio" name="pain-'+e.id+'" '+(e.pain==="other"?'checked':'')+' data-pain="'+e.id+'" data-val="other"> Other</label>' +
         '</div>' +
+        (e.type==="exercise" ? (
+          '<div class="fatigue-level">' +
+            '<div class="pain-level-label">Fatigue level</div>' +
+            '<div class="fatigue-level-row">' +
+              Array.from({length:11}, function(_,i){ return i; }).map(function(n){
+                return '<button type="button" class="fl-btn '+(e.fatigueLevel===n?'selected':'')+'" data-fl="'+e.id+'" data-lvl="'+n+'">'+n+'</button>';
+              }).join("") +
+            '</div>' +
+            '<div class="pain-level-anchors"><span>0 · No fatigue</span><span>5 · Moderate</span><span>10 · Worst imaginable</span></div>' +
+          '</div>'
+        ) : '') +
         ((e.pain===true || e.pain==="other") ? (
           '<div class="pain-level">' +
             '<div class="pain-level-label">Pain level</div>' +
@@ -774,6 +884,14 @@
               }).join("") +
             '</div>' +
             '<div class="pain-level-anchors"><span>1 · Very mild</span><span>5 · Painful but tolerable</span><span>10 · Intolerable, consider care</span></div>' +
+          '</div>'
+        ) : '') +
+        (e.type==="exercise" && (e.pain===true || e.pain==="other") ? (
+          '<div class="timing-row">' +
+            ['during','after'].map(function(t){
+              var tSel = (e.painTiming||[]).indexOf(t)>=0;
+              return '<label class="other-check"><input type="checkbox" data-pain-timing="'+e.id+'" data-timing="'+t+'" '+(tSel?'checked':'')+'> '+(t==="during"?"During exercise":"After exercise")+'</label>';
+            }).join("") +
           '</div>'
         ) : '') +
         (e.pain===true ? (
@@ -812,6 +930,12 @@
     });
     container.querySelectorAll("[data-pl]").forEach(function(b){
       b.addEventListener("click", function(){ setPainLevel(b.dataset.pl, parseInt(b.dataset.lvl,10)); });
+    });
+    container.querySelectorAll("[data-fl]").forEach(function(b){
+      b.addEventListener("click", function(){ setFatigueLevel(b.dataset.fl, parseInt(b.dataset.lvl,10)); });
+    });
+    container.querySelectorAll("[data-pain-timing]").forEach(function(b){
+      b.addEventListener("change", function(){ updatePainTiming(b.dataset.painTiming, b.dataset.timing, b.checked); });
     });
   }
 
@@ -873,9 +997,56 @@
   var flagLabels = { tarry:"Tarry", black:"Black", blood:"Blood present", mucus:"Mucus", painDuring:"Pain during", straining:"Straining" };
   var riskyFlags = { tarry:1, black:1, blood:1 };
 
+  function bmGapStats(bowelList){
+    var dates = Array.from(new Set(bowelList.map(function(e){return e.date;}))).sort();
+    if(dates.length===0) return { sinceLast:null, longestGap:null };
+    var lastDate = dates[dates.length-1];
+    var last = new Date(lastDate+"T00:00:00");
+    var today = new Date(todayISO()+"T00:00:00");
+    var sinceLast = Math.round((today-last)/86400000);
+    var longestGap = 0;
+    for(var i=1;i<dates.length;i++){
+      var d1 = new Date(dates[i-1]+"T00:00:00"), d2 = new Date(dates[i]+"T00:00:00");
+      var gap = Math.round((d2-d1)/86400000);
+      if(gap>longestGap) longestGap = gap;
+    }
+    if(sinceLast>longestGap) longestGap = sinceLast;
+    return { sinceLast:sinceLast, longestGap:longestGap };
+  }
+
+  function ventCounts(dateStr){
+    return {
+      gas: data.ventLog.filter(function(v){ return v.date===dateStr && v.kind==="gas"; }).length,
+      belch: data.ventLog.filter(function(v){ return v.date===dateStr && v.kind==="belch"; }).length
+    };
+  }
+  function addVent(kind){
+    data.ventLog.push({ id:uid(), date:currentDateB, time:nowHM(), kind:kind });
+    saveData();
+    renderBowel();
+  }
+  function undoLastVent(kind){
+    for(var i=data.ventLog.length-1;i>=0;i--){
+      if(data.ventLog[i].kind===kind && data.ventLog[i].date===currentDateB){ data.ventLog.splice(i,1); break; }
+    }
+    saveData();
+    renderBowel();
+  }
+  document.getElementById("gasBtn").addEventListener("click", function(){ addVent("gas"); });
+  document.getElementById("burpBtn").addEventListener("click", function(){ addVent("belch"); });
+  document.getElementById("gasUndo").addEventListener("click", function(){ undoLastVent("gas"); });
+  document.getElementById("burpUndo").addEventListener("click", function(){ undoLastVent("belch"); });
+
   function renderBowel(){
     document.getElementById("dateLabelB").textContent = fmtDateLabel(currentDateB);
     document.getElementById("dayNoteB").value = getDayNote(currentDateB);
+    var bmStats = bmGapStats(data.bowel);
+    document.getElementById("bmGapBar").innerHTML =
+      '<div class="liquid-pill"><div class="num">'+(bmStats.sinceLast===null?"—":bmStats.sinceLast)+'</div><div class="lbl">Days since last BM</div></div>' +
+      '<div class="liquid-pill"><div class="num">'+(bmStats.longestGap===null?"—":bmStats.longestGap)+'</div><div class="lbl">Longest gap (all-time)</div></div>';
+    var vc = ventCounts(currentDateB);
+    document.getElementById("gasCount").textContent = vc.gas;
+    document.getElementById("burpCount").textContent = vc.belch;
     var list = data.bowel.filter(function(e){ return e.date===currentDateB; })
       .sort(function(a,b){ return a.time.localeCompare(b.time); });
     var container = document.getElementById("bowelList");
@@ -916,13 +1087,25 @@
     var bowelConcern = data.bowel.filter(function(e){
       return e.flags.indexOf("tarry")>=0 || e.flags.indexOf("black")>=0 || e.flags.indexOf("blood")>=0;
     }).length;
+    var bmStats = bmGapStats(data.bowel);
+    var gasTotal = data.ventLog.filter(function(v){ return v.kind==="gas"; }).length;
+    var belchTotal = data.ventLog.filter(function(v){ return v.kind==="belch"; }).length;
+    var exEntries = data.entries.filter(function(e){ return e.type==="exercise"; });
+    var exWithFatigue = exEntries.filter(function(e){ return e.fatigueLevel!=null; });
+    var avgFatigue = exWithFatigue.length>0 ? (exWithFatigue.reduce(function(s,e){return s+e.fatigueLevel;},0)/exWithFatigue.length).toFixed(1) : null;
 
     var cards = [
       { num: total, lbl: "Total entries" },
       { num: painYes, lbl: "Marked pain" },
       { num: painPct+"%", lbl: "Pain rate (of marked)" },
       { num: otherCount, lbl: "Other reactions logged" },
-      { num: bowelConcern, lbl: "Bowel entries w/ blood, black or tarry" }
+      { num: bowelConcern, lbl: "Bowel entries w/ blood, black or tarry" },
+      { num: bmStats.sinceLast===null?"—":bmStats.sinceLast, lbl: "Days since last BM" },
+      { num: bmStats.longestGap===null?"—":bmStats.longestGap, lbl: "Longest gap between BMs" },
+      { num: gasTotal, lbl: "Gas events logged" },
+      { num: belchTotal, lbl: "Belch events logged" },
+      { num: exEntries.length, lbl: "Exercise entries" },
+      { num: avgFatigue===null?"—":avgFatigue+"/10", lbl: "Avg fatigue after exercise" }
     ];
     document.getElementById("statCards").innerHTML = cards.map(function(c){
       return '<div class="stat-card"><div class="num">'+c.num+'</div><div class="lbl">'+c.lbl+'</div></div>';
@@ -980,6 +1163,10 @@
     entriesInRange.forEach(function(e){
       if(e.painLevel && e.painLevel>=9) flagRows.push(fmtDateLabel(e.date)+' at '+fmtTime(e.time)+' — pain level '+e.painLevel+'/10 ('+escapeHtml(detailOf(e))+')');
     });
+    var bmStatsGlobal = bmGapStats(data.bowel);
+    if(bmStatsGlobal.sinceLast!==null && bmStatsGlobal.sinceLast>=3){
+      flagRows.push('No bowel movement in '+bmStatsGlobal.sinceLast+' days (as of report generation)');
+    }
 
     var days = {};
     entriesInRange.forEach(function(e){ days[e.date]=1; });
@@ -1012,23 +1199,29 @@
       var merged = dayEntries.concat(dayBowel).sort(function(a,b){return a.time.localeCompare(b.time);});
       var note = getDayNote(d);
       var dayLiquid = liquidTotals(entriesInRange.filter(function(e){return e.date===d;}));
+      var dayVent = ventCounts(d);
       var rows = merged.map(function(m){
         var e = m.ref;
         if(m.kind==='intake'){
           var painText;
           if(e.pain===true){
             var bits = ['Caused pain'+(e.painLevel?' ('+e.painLevel+'/10)':'')];
+            if(e.type==="exercise" && e.painTiming && e.painTiming.length) bits.push(e.painTiming.join("/"));
             if(e.painSymptoms && e.painSymptoms.length) bits.push(e.painSymptoms.join(", "));
             if(e.painNote) bits.push(escapeHtml(e.painNote));
             painText = '<span class="rflag">'+bits.join(" — ")+'</span>';
           } else if(e.pain===false){
             painText = 'No reaction';
           } else if(e.pain==="other"){
-            painText = '<span class="rflag">Other'+(e.otherNote?': '+escapeHtml(e.otherNote):'')+'</span>';
+            var obits = ['Other'];
+            if(e.type==="exercise" && e.painTiming && e.painTiming.length) obits.push(e.painTiming.join("/"));
+            if(e.otherNote) obits.push(escapeHtml(e.otherNote));
+            painText = '<span class="rflag">'+obits.join(" — ")+'</span>';
           } else {
             painText = 'Not marked';
           }
-          return '<div class="report-row"><div class="rt">'+fmtTime(e.time)+'</div><div class="rd"><strong>'+e.type.charAt(0).toUpperCase()+e.type.slice(1)+':</strong> '+escapeHtml(detailOf(e))+' — '+painText+'</div></div>';
+          var fatigueText = (e.type==="exercise" && e.fatigueLevel!=null) ? ' · Fatigue '+e.fatigueLevel+'/10' : '';
+          return '<div class="report-row"><div class="rt">'+fmtTime(e.time)+'</div><div class="rd"><strong>'+e.type.charAt(0).toUpperCase()+e.type.slice(1)+':</strong> '+escapeHtml(detailOf(e))+' — '+painText+fatigueText+'</div></div>';
         } else {
           var risky = e.flags.filter(function(f){return riskyFlags[f];});
           var other = e.flags.filter(function(f){return !riskyFlags[f];});
@@ -1040,9 +1233,13 @@
           return '<div class="report-row"><div class="rt">'+fmtTime(e.time)+'</div><div class="rd"><strong>Bowel movement:</strong> '+(parts.join(" · ")||"logged")+'</div></div>';
         }
       }).join("");
+      var summaryBits = [];
+      if(dayLiquid.water>0||dayLiquid.other>0) summaryBits.push('💧 Water: '+dayLiquid.water+' oz · Other liquids: '+dayLiquid.other+' oz');
+      if(dayVent.gas>0) summaryBits.push('💨 Gas: '+dayVent.gas);
+      if(dayVent.belch>0) summaryBits.push('🫧 Belch: '+dayVent.belch);
       return '<div class="report-day"><div class="report-day-title">'+fmtDateLabel(d)+'</div>' +
         (note ? '<div class="report-day-note">Notes: '+escapeHtml(note)+'</div>' : '') +
-        ((dayLiquid.water>0||dayLiquid.other>0) ? '<div class="report-day-note">💧 Water: '+dayLiquid.water+' oz · Other liquids: '+dayLiquid.other+' oz</div>' : '') +
+        (summaryBits.length ? '<div class="report-day-note">'+summaryBits.join(" · ")+'</div>' : '') +
         rows + '</div>';
     }).join("");
 
@@ -1056,17 +1253,29 @@
     }
 
     var rangeLiquid = liquidTotals(entriesInRange);
+    var bmStatsRange = bmGapStats(bowelInRange);
+    var gasRangeTotal = data.ventLog.filter(function(v){ return v.date>=from && v.date<=to && v.kind==="gas"; }).length;
+    var belchRangeTotal = data.ventLog.filter(function(v){ return v.date>=from && v.date<=to && v.kind==="belch"; }).length;
+    var exInRange = entriesInRange.filter(function(e){ return e.type==="exercise"; });
+    var exFatigueInRange = exInRange.filter(function(e){ return e.fatigueLevel!=null; });
+    var avgFatigueRange = exFatigueInRange.length>0 ? (exFatigueInRange.reduce(function(s,e){return s+e.fatigueLevel;},0)/exFatigueInRange.length).toFixed(1) : null;
 
     html += '<div class="report-section"><h3>Summary</h3><div class="stat-cards">' +
       '<div class="stat-card"><div class="num">'+dayCount+'</div><div class="lbl">Days logged</div></div>' +
-      '<div class="stat-card"><div class="num">'+entriesInRange.length+'</div><div class="lbl">Food/liquid/med entries</div></div>' +
+      '<div class="stat-card"><div class="num">'+entriesInRange.length+'</div><div class="lbl">Food/liquid/med/exercise entries</div></div>' +
       '<div class="stat-card"><div class="num">'+painCount+'</div><div class="lbl">Marked pain</div></div>' +
       '<div class="stat-card"><div class="num">'+bowelInRange.length+'</div><div class="lbl">Bowel movements</div></div>' +
+      '<div class="stat-card"><div class="num">'+(bmStatsRange.longestGap===null?"—":bmStatsRange.longestGap)+'</div><div class="lbl">Longest gap without BM (range)</div></div>' +
+      '<div class="stat-card"><div class="num">'+(bmStatsGlobal.sinceLast===null?"—":bmStatsGlobal.sinceLast)+'</div><div class="lbl">Days since last BM (as of report)</div></div>' +
       '<div class="stat-card"><div class="num">'+rangeLiquid.water+' oz</div><div class="lbl">Total water</div></div>' +
       '<div class="stat-card"><div class="num">'+rangeLiquid.other+' oz</div><div class="lbl">Total other liquids</div></div>' +
+      '<div class="stat-card"><div class="num">'+gasRangeTotal+'</div><div class="lbl">Gas events</div></div>' +
+      '<div class="stat-card"><div class="num">'+belchRangeTotal+'</div><div class="lbl">Belch events</div></div>' +
+      '<div class="stat-card"><div class="num">'+exInRange.length+'</div><div class="lbl">Exercise entries</div></div>' +
+      '<div class="stat-card"><div class="num">'+(avgFatigueRange===null?"—":avgFatigueRange+"/10")+'</div><div class="lbl">Avg fatigue</div></div>' +
     '</div></div>';
 
-    html += '<div class="report-section"><h3>Possible trigger foods / liquids / medicines</h3>';
+    html += '<div class="report-section"><h3>Possible trigger foods / liquids / medicines / exercise</h3>';
     if(triggerArr.length===0){ html += '<div class="empty">None marked in this range.</div>'; }
     else { triggerArr.forEach(function(g){
         var rate = Math.round(100*g.yes/(g.yes+g.no||1));
@@ -1130,6 +1339,7 @@
         if(!confirm("This will replace all current data with the imported backup. Continue?")) return;
         data = imported;
         if(!data.dailyNotes) data.dailyNotes = {};
+        if(!data.ventLog) data.ventLog = [];
         saveData();
         renderDiary(); renderBowel(); renderTrends();
       }catch(err){
