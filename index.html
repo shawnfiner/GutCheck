@@ -196,6 +196,14 @@
   .btn-save{background:var(--accent);color:#fff;}
   .helper{font-size:11.5px;color:var(--ink-soft);margin-top:4px;}
   .checkgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+
+  .ac-wrap{position:relative;}
+  .ac-dropdown{position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:170px;overflow-y:auto;box-shadow:0 8px 20px rgba(0,0,0,.14);z-index:60;}
+  .ac-dropdown.hidden{display:none;}
+  .ac-item{padding:8px 10px;font-size:13.5px;cursor:pointer;border-bottom:1px solid var(--bg);}
+  .ac-item:last-child{border-bottom:none;}
+  .ac-item:hover{background:var(--accent-soft);}
+  .ac-item .ac-count{color:var(--ink-soft);font-size:11px;float:right;}
   .checkopt{display:flex;align-items:center;gap:6px;font-size:13.5px;border:1px solid var(--border);border-radius:8px;padding:8px 9px;cursor:pointer;}
   .checkopt input{accent-color:var(--accent);}
   .checkopt.risky{border-color:#EAD3A8;}
@@ -358,17 +366,26 @@
     </div>
     <div class="field" id="f-food-wrap">
       <label>What did you eat?</label>
-      <input type="text" id="f-food" placeholder="e.g., grilled chicken salad">
+      <div class="ac-wrap">
+        <input type="text" id="f-food" placeholder="e.g., grilled chicken salad" autocomplete="off">
+        <div class="ac-dropdown hidden" id="ac-food"></div>
+      </div>
     </div>
     <div class="field" id="f-liquid-wrap" style="display:none;">
       <label>What liquid?</label>
-      <input type="text" id="f-liquid-name" placeholder="e.g., water, coffee, juice (optional)">
+      <div class="ac-wrap">
+        <input type="text" id="f-liquid-name" placeholder="e.g., water, coffee, juice (optional)" autocomplete="off">
+        <div class="ac-dropdown hidden" id="ac-liquid"></div>
+      </div>
       <label style="margin-top:10px;">How much did you drink?</label>
       <select id="f-liquid-oz"></select>
     </div>
     <div class="field" id="f-med-wrap" style="display:none;">
       <label>What medicine did you take? (optional)</label>
-      <input type="text" id="f-med" placeholder="optional">
+      <div class="ac-wrap">
+        <input type="text" id="f-med" placeholder="optional" autocomplete="off">
+        <div class="ac-dropdown hidden" id="ac-med"></div>
+      </div>
     </div>
     <div class="field" id="f-exercise-wrap" style="display:none;">
       <label>What kind of exercise?</label>
@@ -646,6 +663,58 @@
     var label = t==="food"?"food":t==="medicine"?"medicine":t==="exercise"?"activity":"liquid";
     box.innerHTML = count>0 ? '<div class="warn-tag">⚠ This '+label+' was documented to cause pain previously ('+count+'x)</div>' : "";
   }
+
+  // ---------- Autocomplete for food/liquid/medicine fields ----------
+  function historyList(type){
+    var counts = {};
+    data.entries.forEach(function(e){
+      if(e.type!==type) return;
+      var val = (e.detail||"").trim();
+      if(!val) return;
+      var key = val.toLowerCase();
+      if(!counts[key]) counts[key] = { label: val, count: 0 };
+      counts[key].count++;
+    });
+    return Object.keys(counts).map(function(k){ return counts[k]; }).sort(function(a,b){ return b.count-a.count; });
+  }
+  function setupAutocomplete(inputId, dropdownId, type){
+    var input = document.getElementById(inputId);
+    var dropdown = document.getElementById(dropdownId);
+    var suppressNext = false;
+    function showList(items){
+      if(items.length===0){ dropdown.classList.add("hidden"); dropdown.innerHTML=""; return; }
+      dropdown.innerHTML = items.slice(0,8).map(function(it){
+        return '<div class="ac-item" data-val="'+escapeHtml(it.label)+'">'+escapeHtml(it.label)+(it.count>1?'<span class="ac-count">'+it.count+'x</span>':'')+'</div>';
+      }).join("");
+      dropdown.classList.remove("hidden");
+    }
+    function filterAndShow(){
+      var all = historyList(type);
+      var q = input.value.trim().toLowerCase();
+      var filtered = q ? all.filter(function(it){ return it.label.toLowerCase().indexOf(q)>=0; }) : all;
+      showList(filtered);
+    }
+    input.addEventListener("focus", filterAndShow);
+    input.addEventListener("input", function(){
+      if(suppressNext){ suppressNext=false; dropdown.classList.add("hidden"); return; }
+      filterAndShow();
+    });
+    input.addEventListener("blur", function(){
+      setTimeout(function(){ dropdown.classList.add("hidden"); }, 150);
+    });
+    dropdown.addEventListener("mousedown", function(e){
+      var item = e.target.closest(".ac-item");
+      if(!item) return;
+      e.preventDefault();
+      input.value = item.dataset.val;
+      dropdown.classList.add("hidden");
+      suppressNext = true;
+      input.dispatchEvent(new Event("input"));
+    });
+  }
+  setupAutocomplete("f-food", "ac-food", "food");
+  setupAutocomplete("f-liquid-name", "ac-liquid", "liquid");
+  setupAutocomplete("f-med", "ac-med", "medicine");
 
   document.getElementById("addEntryBtn").addEventListener("click", function(){
     editingId = null;
