@@ -162,6 +162,11 @@
   .fl-btn:hover{border-color:var(--fatigue);}
   .fl-btn.selected{background:var(--fatigue);color:#fff;border-color:var(--fatigue);}
 
+  .day-pain-block{margin:2px 0 16px;}
+  .dp-btn{padding:6px 0;border:1px solid var(--border);background:var(--surface);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;color:var(--ink-soft);}
+  .dp-btn:hover{border-color:var(--pain);}
+  .dp-btn.selected{background:var(--pain);color:#fff;border-color:var(--pain);}
+
   .timing-row{display:flex;gap:10px;margin-top:8px;}
   .timing-row .other-check{margin-bottom:0;border:1px solid var(--border);border-radius:8px;padding:6px 10px;}
 
@@ -472,7 +477,7 @@
   "use strict";
   var STORE_KEY = "gutLogData";
   var storageOK = true;
-  var data = { entries: [], bowel: [], dailyNotes: {}, ventLog: [] };
+  var data = { entries: [], bowel: [], dailyNotes: {}, ventLog: [], dayPain: {} };
 
   function loadData(){
     try{
@@ -482,6 +487,7 @@
       if(!data.bowel) data.bowel = [];
       if(!data.dailyNotes) data.dailyNotes = {};
       if(!data.ventLog) data.ventLog = [];
+      if(!data.dayPain) data.dayPain = {};
     }catch(e){
       storageOK = false;
       console.error("Storage unavailable", e);
@@ -572,6 +578,15 @@
   // ---------- Daily notes ----------
   function getDayNote(iso){ return data.dailyNotes[iso] || ""; }
   function setDayNote(iso, text){ data.dailyNotes[iso] = text; saveData(); }
+
+  function getDayPain(iso){ return data.dayPain[iso] || {}; }
+  function setDayPain(iso, period, val){
+    if(!data.dayPain[iso]) data.dayPain[iso] = {};
+    var cur = data.dayPain[iso][period];
+    data.dayPain[iso][period] = (cur===val) ? null : val; // click again to unset
+    saveData();
+    renderDiary();
+  }
   document.getElementById("dayNote").addEventListener("input", function(){ setDayNote(currentDate, this.value); });
   document.getElementById("dayNoteB").addEventListener("input", function(){ setDayNote(currentDateB, this.value); });
 
@@ -893,6 +908,87 @@
     return { water:water, other:other };
   }
 
+  function buildEntryHtml(e){
+    var key = groupKey(e);
+    var priorCount = priorPainCount(e.type, key, e.id);
+    var painSyms = e.painSymptoms || [];
+    return '<div class="entry">' +
+      '<div class="entry-top">' +
+        '<div class="entry-main">' +
+          '<span class="type-chip '+e.type+'">'+e.type+'</span>' +
+          '<div class="entry-detail">'+escapeHtml(detailOf(e))+'</div>' +
+          '<div class="entry-time">'+fmtTime(e.time)+'</div>' +
+        '</div>' +
+        '<div class="entry-actions">' +
+          '<button class="iconsm" title="Edit" data-edit="'+e.id+'">✎</button>' +
+          '<button class="iconsm" title="Delete" data-del="'+e.id+'">🗑</button>' +
+        '</div>' +
+      '</div>' +
+      (priorCount>0 ? '<div class="warn-tag">⚠ Previously caused pain ('+priorCount+'x)</div>' : '') +
+      '<div class="pain-row">' +
+        '<label class="pain-opt '+(e.pain===true?'active-pain':'')+'"><input type="radio" name="pain-'+e.id+'" '+(e.pain===true?'checked':'')+' data-pain="'+e.id+'" data-val="true"> Caused pain</label>' +
+        '<label class="pain-opt ok '+(e.pain===false?'active-ok':'')+'"><input type="radio" name="pain-'+e.id+'" '+(e.pain===false?'checked':'')+' data-pain="'+e.id+'" data-val="false"> Did not cause pain</label>' +
+        '<label class="pain-opt other '+(e.pain==="other"?'active-other':'')+'"><input type="radio" name="pain-'+e.id+'" '+(e.pain==="other"?'checked':'')+' data-pain="'+e.id+'" data-val="other"> Other</label>' +
+      '</div>' +
+      (e.type==="exercise" ? (
+        '<div class="fatigue-level">' +
+          '<div class="pain-level-label">Fatigue level</div>' +
+          '<div class="fatigue-level-row">' +
+            Array.from({length:11}, function(_,i){ return i; }).map(function(n){
+              return '<button type="button" class="fl-btn '+(e.fatigueLevel===n?'selected':'')+'" data-fl="'+e.id+'" data-lvl="'+n+'">'+n+'</button>';
+            }).join("") +
+          '</div>' +
+          '<div class="pain-level-anchors"><span>0 · No fatigue</span><span>5 · Moderate</span><span>10 · Worst imaginable</span></div>' +
+        '</div>'
+      ) : '') +
+      ((e.pain===true || e.pain==="other") ? (
+        '<div class="pain-level">' +
+          '<div class="pain-level-label">Pain level</div>' +
+          '<div class="pain-level-row">' +
+            Array.from({length:10}, function(_,i){ return i+1; }).map(function(n){
+              return '<button type="button" class="pl-btn '+(e.painLevel===n?'selected':'')+'" data-pl="'+e.id+'" data-lvl="'+n+'">'+n+'</button>';
+            }).join("") +
+          '</div>' +
+          '<div class="pain-level-anchors"><span>1 · Very mild</span><span>5 · Painful but tolerable</span><span>10 · Intolerable, consider care</span></div>' +
+        '</div>'
+      ) : '') +
+      (e.type==="exercise" && (e.pain===true || e.pain==="other") ? (
+        '<div class="timing-row">' +
+          ['during','after'].map(function(t){
+            var tSel = (e.painTiming||[]).indexOf(t)>=0;
+            return '<label class="other-check"><input type="checkbox" data-pain-timing="'+e.id+'" data-timing="'+t+'" '+(tSel?'checked':'')+'> '+(t==="during"?"During exercise":"After exercise")+'</label>';
+          }).join("") +
+        '</div>'
+      ) : '') +
+      (e.pain===true ? (
+        '<div class="other-panel">' +
+          ['gurgling','gas','nausea'].map(function(s){
+            var lbl = s==="gurgling" ? "Stomach gurgling" : s==="gas" ? "Gas" : "Nausea";
+            return '<label class="other-check"><input type="checkbox" data-pain-sym="'+e.id+'" data-sym="'+s+'" '+(painSyms.indexOf(s)>=0?'checked':'')+'> '+lbl+'</label>';
+          }).join("") +
+          '<input type="text" class="other-note" placeholder="Describe (optional)" data-pain-note="'+e.id+'" value="'+escapeHtml(e.painNote||"")+'">' +
+        '</div>'
+      ) : '') +
+      (e.pain==="other" ? (
+        '<div class="other-panel">' +
+          '<input type="text" class="other-note" placeholder="Describe (optional)" data-other-note="'+e.id+'" value="'+escapeHtml(e.otherNote||"")+'">' +
+        '</div>'
+      ) : '') +
+    '</div>';
+  }
+
+  function dayPainScaleHtml(period, label, val){
+    return '<div class="group-label">'+label+'</div>' +
+      '<div class="day-pain-block">' +
+        '<div class="fatigue-level-row">' +
+          Array.from({length:11}, function(_,i){ return i; }).map(function(n){
+            return '<button type="button" class="dp-btn '+(val===n?'selected':'')+'" data-dp="'+period+'" data-lvl="'+n+'">'+n+'</button>';
+          }).join("") +
+        '</div>' +
+        '<div class="pain-level-anchors"><span>0 · No pain</span><span>5 · Painful but tolerable</span><span>10 · Intolerable, consider care</span></div>' +
+      '</div>';
+  }
+
   function renderDiary(){
     document.getElementById("dateLabel").textContent = fmtDateLabel(currentDate);
     document.getElementById("dayNote").value = getDayNote(currentDate);
@@ -903,82 +999,23 @@
       '<div class="liquid-pill"><div class="num">'+lt.water+' oz</div><div class="lbl">Water</div></div>' +
       '<div class="liquid-pill"><div class="num">'+lt.other+' oz</div><div class="lbl">Other liquids</div></div>';
     var container = document.getElementById("entryList");
-    if(list.length===0){
-      container.innerHTML = '<div class="empty">No entries yet for this day.<br>Tap + Add Entry to log your first item.</div>';
-      return;
-    }
+
+    var buckets = { Morning: [], Afternoon: [], Evening: [] };
+    list.forEach(function(e){ buckets[timeGroup(e.time)].push(e); });
+    var dp = getDayPain(currentDate);
+
     var html = "";
-    var lastGroup = null;
-    list.forEach(function(e){
-      var g = timeGroup(e.time);
-      if(g!==lastGroup){ html += '<div class="group-label">'+g+'</div>'; lastGroup = g; }
-      var key = groupKey(e);
-      var priorCount = priorPainCount(e.type, key, e.id);
-      var painSyms = e.painSymptoms || [];
-      html += '<div class="entry">' +
-        '<div class="entry-top">' +
-          '<div class="entry-main">' +
-            '<span class="type-chip '+e.type+'">'+e.type+'</span>' +
-            '<div class="entry-detail">'+escapeHtml(detailOf(e))+'</div>' +
-            '<div class="entry-time">'+fmtTime(e.time)+'</div>' +
-          '</div>' +
-          '<div class="entry-actions">' +
-            '<button class="iconsm" title="Edit" data-edit="'+e.id+'">✎</button>' +
-            '<button class="iconsm" title="Delete" data-del="'+e.id+'">🗑</button>' +
-          '</div>' +
-        '</div>' +
-        (priorCount>0 ? '<div class="warn-tag">⚠ Previously caused pain ('+priorCount+'x)</div>' : '') +
-        '<div class="pain-row">' +
-          '<label class="pain-opt '+(e.pain===true?'active-pain':'')+'"><input type="radio" name="pain-'+e.id+'" '+(e.pain===true?'checked':'')+' data-pain="'+e.id+'" data-val="true"> Caused pain</label>' +
-          '<label class="pain-opt ok '+(e.pain===false?'active-ok':'')+'"><input type="radio" name="pain-'+e.id+'" '+(e.pain===false?'checked':'')+' data-pain="'+e.id+'" data-val="false"> Did not cause pain</label>' +
-          '<label class="pain-opt other '+(e.pain==="other"?'active-other':'')+'"><input type="radio" name="pain-'+e.id+'" '+(e.pain==="other"?'checked':'')+' data-pain="'+e.id+'" data-val="other"> Other</label>' +
-        '</div>' +
-        (e.type==="exercise" ? (
-          '<div class="fatigue-level">' +
-            '<div class="pain-level-label">Fatigue level</div>' +
-            '<div class="fatigue-level-row">' +
-              Array.from({length:11}, function(_,i){ return i; }).map(function(n){
-                return '<button type="button" class="fl-btn '+(e.fatigueLevel===n?'selected':'')+'" data-fl="'+e.id+'" data-lvl="'+n+'">'+n+'</button>';
-              }).join("") +
-            '</div>' +
-            '<div class="pain-level-anchors"><span>0 · No fatigue</span><span>5 · Moderate</span><span>10 · Worst imaginable</span></div>' +
-          '</div>'
-        ) : '') +
-        ((e.pain===true || e.pain==="other") ? (
-          '<div class="pain-level">' +
-            '<div class="pain-level-label">Pain level</div>' +
-            '<div class="pain-level-row">' +
-              Array.from({length:10}, function(_,i){ return i+1; }).map(function(n){
-                return '<button type="button" class="pl-btn '+(e.painLevel===n?'selected':'')+'" data-pl="'+e.id+'" data-lvl="'+n+'">'+n+'</button>';
-              }).join("") +
-            '</div>' +
-            '<div class="pain-level-anchors"><span>1 · Very mild</span><span>5 · Painful but tolerable</span><span>10 · Intolerable, consider care</span></div>' +
-          '</div>'
-        ) : '') +
-        (e.type==="exercise" && (e.pain===true || e.pain==="other") ? (
-          '<div class="timing-row">' +
-            ['during','after'].map(function(t){
-              var tSel = (e.painTiming||[]).indexOf(t)>=0;
-              return '<label class="other-check"><input type="checkbox" data-pain-timing="'+e.id+'" data-timing="'+t+'" '+(tSel?'checked':'')+'> '+(t==="during"?"During exercise":"After exercise")+'</label>';
-            }).join("") +
-          '</div>'
-        ) : '') +
-        (e.pain===true ? (
-          '<div class="other-panel">' +
-            ['gurgling','gas','nausea'].map(function(s){
-              var lbl = s==="gurgling" ? "Stomach gurgling" : s==="gas" ? "Gas" : "Nausea";
-              return '<label class="other-check"><input type="checkbox" data-pain-sym="'+e.id+'" data-sym="'+s+'" '+(painSyms.indexOf(s)>=0?'checked':'')+'> '+lbl+'</label>';
-            }).join("") +
-            '<input type="text" class="other-note" placeholder="Describe (optional)" data-pain-note="'+e.id+'" value="'+escapeHtml(e.painNote||"")+'">' +
-          '</div>'
-        ) : '') +
-        (e.pain==="other" ? (
-          '<div class="other-panel">' +
-            '<input type="text" class="other-note" placeholder="Describe (optional)" data-other-note="'+e.id+'" value="'+escapeHtml(e.otherNote||"")+'">' +
-          '</div>'
-        ) : '') +
-      '</div>';
-    });
+    if(list.length===0){
+      html += '<div class="empty">No food/liquid/medicine/exercise entries yet for this day.<br>Tap + Add Entry to log your first item.</div>';
+    }
+    html += dayPainScaleHtml("morning", "Morning", dp.morning!=null?dp.morning:null);
+    buckets.Morning.forEach(function(e){ html += buildEntryHtml(e); });
+    html += dayPainScaleHtml("afternoon", "Afternoon", dp.afternoon!=null?dp.afternoon:null);
+    buckets.Afternoon.forEach(function(e){ html += buildEntryHtml(e); });
+    html += dayPainScaleHtml("evening", "Evening", dp.evening!=null?dp.evening:null);
+    buckets.Evening.forEach(function(e){ html += buildEntryHtml(e); });
+    html += dayPainScaleHtml("beforeSleep", "Pain before sleep", dp.beforeSleep!=null?dp.beforeSleep:null);
+
     container.innerHTML = html;
     container.querySelectorAll("[data-edit]").forEach(function(b){ b.addEventListener("click", function(){ openEditEntry(b.dataset.edit); }); });
     container.querySelectorAll("[data-del]").forEach(function(b){ b.addEventListener("click", function(){ deleteEntry(b.dataset.del); }); });
@@ -1005,6 +1042,9 @@
     });
     container.querySelectorAll("[data-pain-timing]").forEach(function(b){
       b.addEventListener("change", function(){ updatePainTiming(b.dataset.painTiming, b.dataset.timing, b.checked); });
+    });
+    container.querySelectorAll("[data-dp]").forEach(function(b){
+      b.addEventListener("click", function(){ setDayPain(currentDate, b.dataset.dp, parseInt(b.dataset.lvl,10)); });
     });
   }
 
@@ -1147,6 +1187,22 @@
   }
 
   // ---------- Trends ----------
+  function dayPainAverages(from, to){
+    var sums={morning:0,afternoon:0,evening:0,beforeSleep:0}, counts={morning:0,afternoon:0,evening:0,beforeSleep:0};
+    Object.keys(data.dayPain).forEach(function(d){
+      if(from && (d<from || d>to)) return;
+      var dp = data.dayPain[d];
+      ['morning','afternoon','evening','beforeSleep'].forEach(function(p){
+        if(dp[p]!=null){ sums[p]+=dp[p]; counts[p]++; }
+      });
+    });
+    var avgs={};
+    ['morning','afternoon','evening','beforeSleep'].forEach(function(p){
+      avgs[p] = counts[p]>0 ? (sums[p]/counts[p]).toFixed(1) : null;
+    });
+    return avgs;
+  }
+
   function renderTrends(){
     var total = data.entries.length;
     var painYes = data.entries.filter(function(e){ return e.pain===true; }).length;
@@ -1162,6 +1218,7 @@
     var exEntries = data.entries.filter(function(e){ return e.type==="exercise"; });
     var exWithFatigue = exEntries.filter(function(e){ return e.fatigueLevel!=null; });
     var avgFatigue = exWithFatigue.length>0 ? (exWithFatigue.reduce(function(s,e){return s+e.fatigueLevel;},0)/exWithFatigue.length).toFixed(1) : null;
+    var dpAvg = dayPainAverages();
 
     var cards = [
       { num: total, lbl: "Total entries" },
@@ -1174,7 +1231,11 @@
       { num: gasTotal, lbl: "Gas events logged" },
       { num: belchTotal, lbl: "Belch events logged" },
       { num: exEntries.length, lbl: "Exercise entries" },
-      { num: avgFatigue===null?"—":avgFatigue+"/10", lbl: "Avg fatigue after exercise" }
+      { num: avgFatigue===null?"—":avgFatigue+"/10", lbl: "Avg fatigue after exercise" },
+      { num: dpAvg.morning===null?"—":dpAvg.morning+"/10", lbl: "Avg morning pain" },
+      { num: dpAvg.afternoon===null?"—":dpAvg.afternoon+"/10", lbl: "Avg afternoon pain" },
+      { num: dpAvg.evening===null?"—":dpAvg.evening+"/10", lbl: "Avg evening pain" },
+      { num: dpAvg.beforeSleep===null?"—":dpAvg.beforeSleep+"/10", lbl: "Avg pain before sleep" }
     ];
     document.getElementById("statCards").innerHTML = cards.map(function(c){
       return '<div class="stat-card"><div class="num">'+c.num+'</div><div class="lbl">'+c.lbl+'</div></div>';
@@ -1240,6 +1301,11 @@
     var days = {};
     entriesInRange.forEach(function(e){ days[e.date]=1; });
     bowelInRange.forEach(function(e){ days[e.date]=1; });
+    Object.keys(data.dayPain).forEach(function(d){
+      if(d<from || d>to) return;
+      var dp = data.dayPain[d];
+      if(dp.morning!=null||dp.afternoon!=null||dp.evening!=null||dp.beforeSleep!=null) days[d]=1;
+    });
     var dayCount = Object.keys(days).length;
     var painCount = entriesInRange.filter(function(e){ return e.pain===true; }).length;
 
@@ -1306,6 +1372,10 @@
       if(dayLiquid.water>0||dayLiquid.other>0) summaryBits.push('💧 Water: '+dayLiquid.water+' oz · Other liquids: '+dayLiquid.other+' oz');
       if(dayVent.gas>0) summaryBits.push('💨 Gas: '+dayVent.gas);
       if(dayVent.belch>0) summaryBits.push('🫧 Belch: '+dayVent.belch);
+      var dpDay = getDayPain(d);
+      if(dpDay.morning!=null||dpDay.afternoon!=null||dpDay.evening!=null||dpDay.beforeSleep!=null){
+        summaryBits.push('Pain — Morning: '+(dpDay.morning!=null?dpDay.morning:'—')+' · Afternoon: '+(dpDay.afternoon!=null?dpDay.afternoon:'—')+' · Evening: '+(dpDay.evening!=null?dpDay.evening:'—')+' · Before sleep: '+(dpDay.beforeSleep!=null?dpDay.beforeSleep:'—'));
+      }
       return '<div class="report-day"><div class="report-day-title">'+fmtDateLabel(d)+'</div>' +
         (note ? '<div class="report-day-note">Notes: '+escapeHtml(note)+'</div>' : '') +
         (summaryBits.length ? '<div class="report-day-note">'+summaryBits.join(" · ")+'</div>' : '') +
@@ -1328,6 +1398,7 @@
     var exInRange = entriesInRange.filter(function(e){ return e.type==="exercise"; });
     var exFatigueInRange = exInRange.filter(function(e){ return e.fatigueLevel!=null; });
     var avgFatigueRange = exFatigueInRange.length>0 ? (exFatigueInRange.reduce(function(s,e){return s+e.fatigueLevel;},0)/exFatigueInRange.length).toFixed(1) : null;
+    var dpAvgRange = dayPainAverages(from, to);
 
     html += '<div class="report-section"><h3>Summary</h3><div class="stat-cards">' +
       '<div class="stat-card"><div class="num">'+dayCount+'</div><div class="lbl">Days logged</div></div>' +
@@ -1342,6 +1413,10 @@
       '<div class="stat-card"><div class="num">'+belchRangeTotal+'</div><div class="lbl">Belch events</div></div>' +
       '<div class="stat-card"><div class="num">'+exInRange.length+'</div><div class="lbl">Exercise entries</div></div>' +
       '<div class="stat-card"><div class="num">'+(avgFatigueRange===null?"—":avgFatigueRange+"/10")+'</div><div class="lbl">Avg fatigue</div></div>' +
+      '<div class="stat-card"><div class="num">'+(dpAvgRange.morning===null?"—":dpAvgRange.morning+"/10")+'</div><div class="lbl">Avg morning pain</div></div>' +
+      '<div class="stat-card"><div class="num">'+(dpAvgRange.afternoon===null?"—":dpAvgRange.afternoon+"/10")+'</div><div class="lbl">Avg afternoon pain</div></div>' +
+      '<div class="stat-card"><div class="num">'+(dpAvgRange.evening===null?"—":dpAvgRange.evening+"/10")+'</div><div class="lbl">Avg evening pain</div></div>' +
+      '<div class="stat-card"><div class="num">'+(dpAvgRange.beforeSleep===null?"—":dpAvgRange.beforeSleep+"/10")+'</div><div class="lbl">Avg pain before sleep</div></div>' +
     '</div></div>';
 
     html += '<div class="report-section"><h3>Possible trigger foods / liquids / medicines / exercise</h3>';
@@ -1409,6 +1484,7 @@
         data = imported;
         if(!data.dailyNotes) data.dailyNotes = {};
         if(!data.ventLog) data.ventLog = [];
+        if(!data.dayPain) data.dayPain = {};
         saveData();
         renderDiary(); renderBowel(); renderTrends();
       }catch(err){
